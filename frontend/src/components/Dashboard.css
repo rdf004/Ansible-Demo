@@ -1,0 +1,153 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.summary-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.summary-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.summary-card.filled .summary-value {
+  color: var(--accent-green);
+}
+
+.summary-card.pending .summary-value {
+  color: var(--accent-yellow);
+}
+
+.summary-card.cancelled .summary-value {
+  color: var(--accent-red);
+}
+
+.table-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.txn-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.txn-table th {
+  text-align: left;
+  padding: 14px 16px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.txn-table td {
+  padding: 14px 16px;
+  font-size: 0.85rem;
+  border-bottom:
+    1px solid
+    rgba(42, 53, 72, 0.5);
+}
+
+.txn-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.txn-row:hover {
+  background: var(--bg-hover);
+}
+
+.td-asset {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.td-time {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.td-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.s-filled {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-green);
+}
+
+.s-pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-yellow);
+}
+
+.s-cancelled {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--accent-red);
+}
+
+.dir-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.d-buy {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-green);
+}
+
+.d-sell {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--accent-red);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
