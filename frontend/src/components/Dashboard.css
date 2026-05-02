@@ -1,55 +1,61 @@
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .summary-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  grid-template-columns:
+    repeat(4, 1fr);
+  gap: 14px;
 }
 
 .summary-card {
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 18px 20px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  box-shadow: var(--shadow-sm);
 }
 
 .summary-label {
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 500;
+  letter-spacing: 0.08em;
+  font-weight: 600;
 }
 
 .summary-value {
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .summary-card.filled .summary-value {
   color: var(--accent-green);
 }
 
-.summary-card.pending .summary-value {
+.summary-card.pending
+  .summary-value {
   color: var(--accent-yellow);
 }
 
-.summary-card.cancelled .summary-value {
+.summary-card.cancelled
+  .summary-value {
   color: var(--accent-red);
 }
 
 .table-container {
   background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .txn-table {
@@ -59,27 +65,27 @@
 
 .txn-table th {
   text-align: left;
-  padding: 14px 16px;
-  font-size: 0.72rem;
+  padding: 10px 16px;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
   font-weight: 600;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-secondary);
+  border-bottom:
+    2px solid var(--border);
+  background: var(--bg-table-header);
 }
 
 .txn-table td {
-  padding: 14px 16px;
-  font-size: 0.85rem;
+  padding: 11px 16px;
+  font-size: 0.82rem;
   border-bottom:
-    1px solid
-    rgba(42, 53, 72, 0.5);
+    1px solid var(--border-light);
 }
 
 .txn-row {
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.1s;
 }
 
 .txn-row:hover {
@@ -87,61 +93,64 @@
 }
 
 .td-asset {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
+  letter-spacing: 0.02em;
 }
 
 .td-time {
   color: var(--text-secondary);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .td-num {
   font-variant-numeric: tabular-nums;
   text-align: right;
+  font-weight: 500;
 }
 
 .status-badge {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: 4px;
-  font-size: 0.72rem;
-  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .s-filled {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(13, 122, 80, 0.08);
   color: var(--accent-green);
 }
 
 .s-pending {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(180, 83, 9, 0.08);
   color: var(--accent-yellow);
 }
 
 .s-cancelled {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(197, 40, 40, 0.08);
   color: var(--accent-red);
 }
 
 .dir-badge {
   display: inline-block;
-  padding: 3px 10px;
-  border-radius: 4px;
-  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .d-buy {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(13, 122, 80, 0.08);
   color: var(--accent-green);
 }
 
 .d-sell {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(197, 40, 40, 0.08);
   color: var(--accent-red);
 }
 
@@ -149,5 +158,5 @@
   text-align: center;
   padding: 48px;
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }

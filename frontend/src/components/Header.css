@@ -2,9 +2,10 @@
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   padding: 0 32px;
-  height: 64px;
+  height: 56px;
   display: flex;
   align-items: center;
+  box-shadow: var(--shadow-sm);
 }
 
 .header-inner {
@@ -23,76 +24,81 @@
 }
 
 .logo {
-  font-size: 1.3rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--accent-navy);
   display: flex;
   align-items: center;
   gap: 8px;
+  letter-spacing: -0.02em;
 }
 
 .logo-icon {
   color: var(--accent-blue);
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .tagline {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
-  border-left: 1px solid var(--border);
+  border-left:
+    1px solid var(--border);
   padding-left: 16px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .health-badge {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.78rem;
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: 6px;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 4px;
   border: 1px solid var(--border);
-  background: var(--bg-card);
+  background: var(--bg-hover);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .health-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
 }
 
 .status-healthy .health-dot {
   background: var(--accent-green);
-  box-shadow: 0 0 6px var(--accent-green);
 }
 
 .status-unhealthy .health-dot {
   background: var(--accent-red);
-  box-shadow: 0 0 6px var(--accent-red);
 }
 
 .status-unknown .health-dot {
   background: var(--accent-yellow);
-  box-shadow: 0 0 6px var(--accent-yellow);
 }
 
 .btn-new-txn {
-  background: var(--accent-blue);
+  background: var(--accent-navy);
   color: #fff;
   border: none;
-  padding: 8px 18px;
-  border-radius: 6px;
-  font-size: 0.82rem;
+  padding: 7px 16px;
+  border-radius: 4px;
+  font-size: 0.78rem;
   font-weight: 600;
-  transition: background 0.2s;
+  letter-spacing: 0.02em;
+  transition: background 0.15s;
 }
 
 .btn-new-txn:hover {
-  background: #2563eb;
+  background: #15304f;
 }

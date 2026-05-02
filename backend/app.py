@@ -89,20 +89,20 @@ TRANSACTIONS = [
         "id": str(uuid.uuid4()),
         "timestamp": "2026-05-02T14:00:00Z",
         "counterparty": "Credit Suisse",
-        "asset": "BTC-USD",
+        "asset": "DIS",
         "direction": "sell",
-        "quantity": 15,
-        "price": 62450.00,
+        "quantity": 1800,
+        "price": 112.35,
         "status": "filled"
     },
     {
         "id": str(uuid.uuid4()),
         "timestamp": "2026-05-02T14:45:00Z",
         "counterparty": "HSBC Holdings",
-        "asset": "ETH-USD",
+        "asset": "V",
         "direction": "buy",
-        "quantity": 200,
-        "price": 3280.50,
+        "quantity": 950,
+        "price": 298.15,
         "status": "pending"
     }
 ]

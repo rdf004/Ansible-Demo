@@ -4,42 +4,48 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(2px);
 }
 
 .modal-content {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 28px;
+  border-radius: 8px;
+  padding: 24px 28px;
   width: 520px;
   max-width: 90vw;
   max-height: 90vh;
   overflow-y: auto;
+  box-shadow: var(--shadow-lg);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom:
+    1px solid var(--border-light);
 }
 
 .modal-header h2 {
-  font-size: 1.15rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent-navy);
+  letter-spacing: -0.01em;
 }
 
 .modal-close {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   line-height: 1;
   padding: 4px 8px;
   border-radius: 4px;
@@ -53,32 +59,32 @@
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 14px;
+  margin-bottom: 20px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .form-group label {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 500;
+  letter-spacing: 0.08em;
+  font-weight: 600;
 }
 
 .form-group input,
 .form-group select {
   background: var(--bg-primary);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px 12px;
+  border-radius: 4px;
+  padding: 8px 10px;
   color: var(--text-primary);
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -86,6 +92,9 @@
 .form-group input:focus,
 .form-group select:focus {
   border-color: var(--accent-blue);
+  box-shadow:
+    0 0 0 2px
+    rgba(26, 86, 219, 0.12);
 }
 
 .form-group input::placeholder {
@@ -95,7 +104,7 @@
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
   padding-top: 8px;
 }
 
@@ -103,9 +112,9 @@
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-size: 0.82rem;
+  padding: 7px 18px;
+  border-radius: 4px;
+  font-size: 0.8rem;
   font-weight: 500;
   transition: background 0.15s;
 }
@@ -115,18 +124,18 @@
 }
 
 .btn-submit {
-  background: var(--accent-blue);
+  background: var(--accent-navy);
   border: none;
   color: #fff;
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-size: 0.82rem;
+  padding: 7px 18px;
+  border-radius: 4px;
+  font-size: 0.8rem;
   font-weight: 600;
-  transition: background 0.2s;
+  transition: background 0.15s;
 }
 
 .btn-submit:hover:not(:disabled) {
-  background: #2563eb;
+  background: #15304f;
 }
 
 .btn-submit:disabled {
@@ -141,44 +150,51 @@
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 14px;
+  margin-bottom: 20px;
 }
 
 .detail-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .detail-item.full {
   grid-column: 1 / -1;
+  padding-top: 8px;
+  border-top:
+    1px solid var(--border-light);
+  margin-top: 4px;
 }
 
 .detail-label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .detail-value {
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   color: var(--text-primary);
+  font-weight: 500;
 }
 
 .detail-value.id {
-  font-family: monospace;
-  font-size: 0.78rem;
+  font-family:
+    'SF Mono', 'Consolas',
+    monospace;
+  font-size: 0.72rem;
   color: var(--text-secondary);
   word-break: break-all;
 }
 
 .detail-value.notional {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 700;
-  color: var(--accent-blue);
+  color: var(--accent-navy);
 }
 
 .detail-value.dir {
