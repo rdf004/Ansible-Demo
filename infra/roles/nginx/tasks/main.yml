@@ -1,0 +1,56 @@
+---
+# -------------------------------------------------
+# nginx — reverse proxy with security headers,
+#          rate limiting, gzip, caching
+# -------------------------------------------------
+
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+  tags: [nginx]
+
+- name: Remove default Nginx site
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/nginx/sites-enabled/default
+    - /etc/nginx/sites-available/default
+  notify: Reload nginx
+  tags: [nginx]
+
+- name: Deploy TradeOps Nginx config
+  ansible.builtin.template:
+    src: tradeops.conf.j2
+    dest: >-
+      /etc/nginx/sites-available/tradeops.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+  tags: [nginx]
+
+- name: Enable TradeOps Nginx site
+  ansible.builtin.file:
+    src: >-
+      /etc/nginx/sites-available/tradeops.conf
+    dest: >-
+      /etc/nginx/sites-enabled/tradeops.conf
+    state: link
+  notify: Reload nginx
+  tags: [nginx]
+
+- name: Validate Nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  register: nginx_test
+  changed_when: false
+  tags: [nginx]
+
+- name: Enable and start Nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+    enabled: true
+  tags: [nginx]

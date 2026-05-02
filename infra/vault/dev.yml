@@ -1,0 +1,8 @@
+---
+# -------------------------------------------------
+# TradeOps — dev vault secrets
+# Encrypt: ansible-vault encrypt vault/dev.yml
+# -------------------------------------------------
+vault_flask_secret_key: "dev-change-me-not-for-prod"
+vault_db_password: "dev-db-password"
+vault_api_key: "dev-api-key"

@@ -1,0 +1,12 @@
+---
+backend_port: 8000
+gunicorn_workers: 4
+gunicorn_timeout: 120
+gunicorn_graceful_timeout: 30
+gunicorn_max_requests: 1000
+gunicorn_max_requests_jitter: 50
+gunicorn_bind: "127.0.0.1:{{ backend_port }}"
+gunicorn_log_level: info
+
+health_check_interval: 30
+health_check_url: "http://127.0.0.1:{{ backend_port }}/api/health"

@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# TradeOps — backup application data and config
+set -euo pipefail
+
+BACKUP_DIR="{{ backup_dir }}"
+DAILY_RETAIN={{ backup_daily_retain }}
+WEEKLY_RETAIN={{ backup_weekly_retain }}
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+DAY_OF_WEEK=$(date +%u)
+BACKUP_FILE="${BACKUP_DIR}/daily/${TIMESTAMP}.tar.gz"
+
+mkdir -p "${BACKUP_DIR}/daily"
+mkdir -p "${BACKUP_DIR}/weekly"
+
+# --- create daily backup ---
+tar czf "${BACKUP_FILE}" \
+  -C {{ app_base_dir }} \
+  --exclude='releases/*/backend/venv' \
+  --exclude='releases/*/frontend/node_modules' \
+  shared/ \
+  deploy.log \
+  2>/dev/null || true
+
+chmod 0640 "${BACKUP_FILE}"
+chown {{ app_user }}:{{ app_group }} \
+  "${BACKUP_FILE}"
+
+logger -t tradeops-backup \
+  "Daily backup created: ${BACKUP_FILE}"
+
+# --- weekly copy on Sundays ---
+if [ "$DAY_OF_WEEK" -eq 7 ]; then
+  WEEKLY="${BACKUP_DIR}/weekly/${TIMESTAMP}.tar.gz"
+  cp "${BACKUP_FILE}" "${WEEKLY}"
+  logger -t tradeops-backup \
+    "Weekly backup: ${WEEKLY}"
+fi
+
+# --- rotate daily backups ---
+DAILY_LIST=$(ls -1t "${BACKUP_DIR}/daily/"*.tar.gz \
+  2>/dev/null || true)
+DAILY_COUNT=$(echo "$DAILY_LIST" | wc -l)
+if [ "$DAILY_COUNT" -gt "$DAILY_RETAIN" ]; then
+  echo "$DAILY_LIST" \
+    | tail -n +"$((DAILY_RETAIN + 1))" \
+    | xargs rm -f
+fi
+
+# --- rotate weekly backups ---
+WEEKLY_LIST=$(ls -1t \
+  "${BACKUP_DIR}/weekly/"*.tar.gz \
+  2>/dev/null || true)
+WEEKLY_COUNT=$(echo "$WEEKLY_LIST" | wc -l)
+if [ "$WEEKLY_COUNT" -gt "$WEEKLY_RETAIN" ]; then
+  echo "$WEEKLY_LIST" \
+    | tail -n +"$((WEEKLY_RETAIN + 1))" \
+    | xargs rm -f
+fi

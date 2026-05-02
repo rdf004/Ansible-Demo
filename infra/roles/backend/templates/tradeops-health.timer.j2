@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=TradeOps periodic health check
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec={{ health_check_interval }}
+AccuracySec=5
+
+[Install]
+WantedBy=timers.target

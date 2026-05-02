@@ -1,0 +1,67 @@
+---
+# -------------------------------------------------------
+# TradeOps — global default variables
+# Override per-environment in environments/<env>.yml
+# -------------------------------------------------------
+
+# Application identity
+app_name: tradeops
+app_user: tradeops
+app_group: tradeops
+
+# Directory layout
+app_base_dir: /opt/tradeops
+releases_dir: "{{ app_base_dir }}/releases"
+current_link: "{{ app_base_dir }}/current"
+shared_dir: "{{ app_base_dir }}/shared"
+
+# Blue-green deployment
+max_releases: 3
+
+# Backend (Gunicorn)
+backend_port: 8000
+gunicorn_workers: 4
+gunicorn_timeout: 120
+gunicorn_graceful_timeout: 30
+gunicorn_max_requests: 1000
+gunicorn_max_requests_jitter: 50
+gunicorn_bind: "127.0.0.1:{{ backend_port }}"
+gunicorn_log_level: info
+
+# Flask
+flask_env: production
+flask_debug: "false"
+
+# Node.js
+node_major_version: "20"
+
+# Nginx
+nginx_server_name: "_"
+nginx_client_max_body_size: "10m"
+nginx_rate_limit_rate: "30r/s"
+nginx_rate_limit_burst: 20
+
+# Logging / observability
+log_dir: /var/log/tradeops
+log_retention_days: 30
+disk_usage_threshold: 85
+
+# Backup
+backup_dir: "{{ app_base_dir }}/backups"
+backup_daily_retain: 7
+backup_weekly_retain: 4
+
+# Firewall — only these ports are reachable
+allowed_ports:
+  - 22
+  - 80
+  - 443
+
+# SSH
+sshd_port: 22
+sshd_permit_root_login: "no"
+sshd_password_auth: "no"
+
+# Source code origin (empty ⇒ local copy via ansible)
+git_repo: ""
+git_version: "main"

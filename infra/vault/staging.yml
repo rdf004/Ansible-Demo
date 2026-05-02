@@ -1,0 +1,8 @@
+---
+# -------------------------------------------------
+# TradeOps — staging vault secrets
+# Encrypt: ansible-vault encrypt vault/staging.yml
+# -------------------------------------------------
+vault_flask_secret_key: "staging-change-me"
+vault_db_password: "staging-db-password"
+vault_api_key: "staging-api-key"

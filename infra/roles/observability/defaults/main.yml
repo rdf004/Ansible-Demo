@@ -1,0 +1,4 @@
+---
+log_dir: /var/log/tradeops
+log_retention_days: 30
+disk_usage_threshold: 85

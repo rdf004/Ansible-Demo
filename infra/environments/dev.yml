@@ -1,0 +1,17 @@
+---
+# -------------------------------------------------
+# TradeOps — development environment overrides
+# -------------------------------------------------
+deploy_env: dev
+
+flask_env: development
+flask_debug: "false"
+
+gunicorn_workers: 2
+gunicorn_log_level: debug
+
+nginx_server_name: "dev.tradeops.local"
+
+# Relax SSH for dev containers
+sshd_permit_root_login: "yes"
+sshd_password_auth: "yes"

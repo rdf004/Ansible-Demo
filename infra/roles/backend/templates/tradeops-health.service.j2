@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+[Unit]
+Description=TradeOps health-check (oneshot)
+After=tradeops-backend.service
+
+[Service]
+Type=oneshot
+ExecStart={{ shared_dir }}/health-check.sh
+User=root

@@ -20,3 +20,7 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Ansible
+infra/.vault_password
+infra/*.retry

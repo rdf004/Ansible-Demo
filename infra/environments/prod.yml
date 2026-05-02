@@ -1,0 +1,13 @@
+---
+# -------------------------------------------------
+# TradeOps — production environment overrides
+# -------------------------------------------------
+deploy_env: production
+
+flask_env: production
+flask_debug: "false"
+
+gunicorn_workers: 8
+gunicorn_log_level: warning
+
+nginx_server_name: "tradeops.example.com"

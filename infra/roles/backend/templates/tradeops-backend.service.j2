@@ -1,0 +1,26 @@
+# {{ ansible_managed }}
+[Unit]
+Description=TradeOps Flask API (Gunicorn)
+After=network.target
+Wants=tradeops-health.timer
+
+[Service]
+Type=notify
+User={{ app_user }}
+Group={{ app_group }}
+WorkingDirectory={{ current_link }}/backend
+EnvironmentFile={{ shared_dir }}/env/tradeops.env
+ExecStart={{ current_link }}/backend/venv/bin/gunicorn \
+  --config {{ shared_dir }}/gunicorn.conf.py \
+  app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec={{ gunicorn_graceful_timeout }}
+Restart=on-failure
+RestartSec=5
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

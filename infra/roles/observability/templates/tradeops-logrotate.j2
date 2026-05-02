@@ -1,0 +1,20 @@
+# {{ ansible_managed }}
+{{ log_dir }}/*.log {
+    daily
+    rotate {{ log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 {{ app_user }} {{ app_group }}
+    sharedscripts
+    postrotate
+        # signal nginx to reopen log files
+        [ -f /var/run/nginx.pid ] && \
+            kill -USR1 $(cat /var/run/nginx.pid)
+        # signal gunicorn to reopen log files
+        [ -f /var/run/tradeops/gunicorn.pid ] \
+            && kill -USR1 \
+            $(cat /var/run/tradeops/gunicorn.pid)
+    endscript
+}

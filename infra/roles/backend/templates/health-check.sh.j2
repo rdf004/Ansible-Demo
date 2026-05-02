@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# Hit the health endpoint; restart backend if down.
+set -euo pipefail
+
+URL="{{ health_check_url }}"
+MAX_RETRIES=3
+RETRY=0
+
+while [ "$RETRY" -lt "$MAX_RETRIES" ]; do
+  HTTP=$(curl -sf -o /dev/null \
+    -w "%{http_code}" "$URL" 2>/dev/null || true)
+  if [ "$HTTP" = "200" ]; then
+    exit 0
+  fi
+  RETRY=$((RETRY + 1))
+  sleep 2
+done
+
+logger -t tradeops-health \
+  "Health check FAILED — restarting backend"
+systemctl restart tradeops-backend
+exit 1

@@ -1,0 +1,8 @@
+---
+# -------------------------------------------------
+# TradeOps — production vault secrets
+# Encrypt: ansible-vault encrypt vault/prod.yml
+# -------------------------------------------------
+vault_flask_secret_key: "CHANGE-ME-use-vault-encrypt"
+vault_db_password: "CHANGE-ME-use-vault-encrypt"
+vault_api_key: "CHANGE-ME-use-vault-encrypt"

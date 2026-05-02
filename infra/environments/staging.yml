@@ -1,0 +1,13 @@
+---
+# -------------------------------------------------
+# TradeOps — staging environment overrides
+# -------------------------------------------------
+deploy_env: staging
+
+flask_env: staging
+flask_debug: "false"
+
+gunicorn_workers: 4
+gunicorn_log_level: info
+
+nginx_server_name: "staging.tradeops.example.com"

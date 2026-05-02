@@ -1,0 +1,228 @@
+---
+# -------------------------------------------------
+# deploy — blue-green release, build, symlink swap,
+#           integrity manifest, cleanup, audit
+# -------------------------------------------------
+
+# ---------- generate release timestamp ----------
+
+- name: Set release timestamp
+  ansible.builtin.set_fact:
+    release_ts: >-
+      {{ ansible_date_time.iso8601_basic_short }}
+  tags: [deploy]
+
+- name: Set release path
+  ansible.builtin.set_fact:
+    release_path: >-
+      {{ releases_dir }}/{{ release_ts }}
+  tags: [deploy]
+
+- name: Create release directory
+  ansible.builtin.file:
+    path: "{{ release_path }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [deploy]
+
+# ---------- deploy source code ----------
+
+- name: Clone from git
+  ansible.builtin.git:
+    repo: "{{ git_repo }}"
+    dest: "{{ release_path }}"
+    version: "{{ git_version }}"
+  become: true
+  become_user: "{{ app_user }}"
+  when: git_repo | length > 0
+  tags: [deploy]
+
+- name: Copy backend source (local deploy)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../backend/"
+    dest: "{{ release_path }}/backend/"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  when: git_repo | length == 0
+  tags: [deploy, backend]
+
+- name: Copy frontend source (local deploy)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../frontend/"
+    dest: "{{ release_path }}/frontend/"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  when: git_repo | length == 0
+  tags: [deploy, frontend]
+
+# ---------- backend dependencies ----------
+
+- name: Create Python virtualenv
+  ansible.builtin.command:
+    cmd: >-
+      python3 -m venv
+      {{ release_path }}/backend/venv
+    creates: >-
+      {{ release_path }}/backend/venv/bin/python
+  become: true
+  become_user: "{{ app_user }}"
+  tags: [deploy, backend]
+
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    requirements: >-
+      {{ release_path }}/backend/requirements.txt
+    virtualenv: >-
+      {{ release_path }}/backend/venv
+  become: true
+  become_user: "{{ app_user }}"
+  tags: [deploy, backend]
+
+# ---------- frontend build ----------
+
+- name: Install frontend dependencies
+  community.general.npm:
+    path: "{{ release_path }}/frontend"
+    production: true
+    ci: true
+  become: true
+  become_user: "{{ app_user }}"
+  environment:
+    HOME: "{{ app_base_dir }}"
+  tags: [deploy, frontend]
+
+- name: Build frontend for production
+  ansible.builtin.command:
+    cmd: npm run build
+    chdir: "{{ release_path }}/frontend"
+  become: true
+  become_user: "{{ app_user }}"
+  environment:
+    HOME: "{{ app_base_dir }}"
+    NODE_ENV: production
+  register: frontend_build
+  changed_when: frontend_build.rc == 0
+  tags: [deploy, frontend]
+
+# ---------- file integrity manifest ----------
+
+- name: Generate integrity manifest
+  ansible.builtin.command:
+    cmd: >-
+      {{ shared_dir }}/integrity-check.sh
+      {{ release_path }}
+  become: true
+  become_user: "{{ app_user }}"
+  register: integrity_result
+  changed_when: integrity_result.rc == 0
+  tags: [deploy, integrity]
+
+# ---------- symlink swap (atomic cutover) -----
+
+- name: Read current symlink target
+  ansible.builtin.stat:
+    path: "{{ current_link }}"
+  register: old_link
+  tags: [deploy]
+
+- name: Store previous release path
+  ansible.builtin.set_fact:
+    previous_release: >-
+      {{ old_link.stat.lnk_target
+         | default('') }}
+  when: old_link.stat.exists | default(false)
+  tags: [deploy]
+
+- name: Create temporary symlink
+  ansible.builtin.file:
+    src: "{{ release_path }}"
+    dest: "{{ current_link }}.new"
+    state: link
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+  tags: [deploy]
+
+- name: Atomic symlink swap
+  ansible.builtin.command:
+    cmd: >-
+      mv -Tf {{ current_link }}.new
+      {{ current_link }}
+  changed_when: true
+  tags: [deploy]
+
+# ---------- restart services ----------
+
+- name: Restart backend service
+  ansible.builtin.systemd:
+    name: tradeops-backend
+    state: restarted
+    daemon_reload: true
+  tags: [deploy, backend]
+
+- name: Reload Nginx
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded
+  tags: [deploy, nginx]
+
+# ---------- cleanup old releases ----------
+
+- name: List all releases
+  ansible.builtin.find:
+    paths: "{{ releases_dir }}"
+    file_type: directory
+  register: all_releases
+  tags: [deploy]
+
+- name: Sort releases by name
+  ansible.builtin.set_fact:
+    sorted_releases: >-
+      {{ all_releases.files
+         | sort(attribute='path')
+         | map(attribute='path')
+         | list }}
+  tags: [deploy]
+
+- name: Remove old releases beyond retention
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: >-
+    {{ sorted_releases[:-max_releases]
+       | default([]) }}
+  when: >-
+    sorted_releases | length > max_releases
+  tags: [deploy]
+
+# ---------- deployment audit log ----------
+
+- name: Capture git commit (if available)
+  ansible.builtin.command:
+    cmd: git rev-parse --short HEAD
+    chdir: "{{ release_path }}"
+  register: git_sha
+  changed_when: false
+  failed_when: false
+  tags: [deploy, audit]
+
+- name: Append deployment audit entry
+  ansible.builtin.lineinfile:
+    path: "{{ app_base_dir }}/deploy.log"
+    line: >-
+      {{ ansible_date_time.iso8601 }} |
+      env={{ deploy_env | default('dev') }} |
+      release={{ release_ts }} |
+      commit={{ git_sha.stdout
+                | default('local') }} |
+      deployer={{ lookup('env', 'USER')
+                  | default('ansible') }} |
+      status=SUCCESS
+    create: true
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  tags: [deploy, audit]

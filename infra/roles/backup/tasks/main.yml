@@ -1,0 +1,61 @@
+---
+# -------------------------------------------------
+# backup — scheduled backup, rotation, verification
+# -------------------------------------------------
+
+- name: Create backup directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  loop:
+    - "{{ backup_dir }}"
+    - "{{ backup_dir }}/daily"
+    - "{{ backup_dir }}/weekly"
+  tags: [backup]
+
+- name: Deploy backup script
+  ansible.builtin.template:
+    src: backup.sh.j2
+    dest: "{{ shared_dir }}/backup.sh"
+    owner: root
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [backup]
+
+- name: Schedule daily backup via cron
+  ansible.builtin.cron:
+    name: "tradeops-daily-backup"
+    job: "{{ shared_dir }}/backup.sh"
+    hour: "{{ backup_cron_hour }}"
+    minute: "{{ backup_cron_minute }}"
+    user: root
+    state: present
+  tags: [backup]
+
+- name: Run initial backup
+  ansible.builtin.command:
+    cmd: "{{ shared_dir }}/backup.sh"
+  register: initial_backup
+  changed_when: initial_backup.rc == 0
+  failed_when: false
+  tags: [backup]
+
+- name: Verify latest backup exists
+  ansible.builtin.find:
+    paths: "{{ backup_dir }}/daily"
+    patterns: "*.tar.gz"
+    age: "-1d"
+  register: recent_backups
+  tags: [backup]
+
+- name: Verify backup is not empty
+  ansible.builtin.stat:
+    path: "{{ recent_backups.files[0].path }}"
+  register: backup_stat
+  when: recent_backups.files | length > 0
+  failed_when: >-
+    backup_stat.stat.size | default(0) == 0
+  tags: [backup]

@@ -1,0 +1,42 @@
+---
+# -------------------------------------------------
+# observability — log dirs, logrotate, disk check
+# -------------------------------------------------
+
+- name: Ensure log directory exists
+  ansible.builtin.file:
+    path: "{{ log_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [observability]
+
+- name: Deploy logrotate configuration
+  ansible.builtin.template:
+    src: tradeops-logrotate.j2
+    dest: /etc/logrotate.d/tradeops
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [observability]
+
+- name: Check disk usage
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      df --output=pcent / \
+        | tail -1 \
+        | tr -d ' %'
+    executable: /bin/bash
+  register: disk_pct
+  changed_when: false
+  tags: [observability, preflight]
+
+- name: Fail if disk above threshold
+  ansible.builtin.fail:
+    msg: >-
+      Disk usage is {{ disk_pct.stdout }}%
+      (threshold {{ disk_usage_threshold }}%)
+  when: disk_pct.stdout | int > disk_usage_threshold
+  tags: [observability, preflight]

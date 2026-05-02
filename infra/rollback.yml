@@ -1,0 +1,186 @@
+---
+# =========================================================
+# TradeOps — Rollback Playbook
+# =========================================================
+# Reverts to the previous release by swapping the
+# symlink back and restarting services.
+#
+# Usage:
+#   ansible-playbook rollback.yml \
+#     -e deploy_env=dev
+#
+# Optional: specify an exact release directory:
+#   ansible-playbook rollback.yml \
+#     -e deploy_env=dev \
+#     -e rollback_target=20260502T143000
+# =========================================================
+
+- name: Rollback TradeOps
+  hosts: all
+  become: true
+
+  vars_files:
+    - "environments/{{ deploy_env | default('dev') }}.yml"
+    - "vault/{{ deploy_env | default('dev') }}.yml"
+
+  tasks:
+
+    # ---------- identify rollback target ---------
+
+    - name: Read current symlink
+      ansible.builtin.stat:
+        path: "{{ current_link }}"
+      register: current_stat
+      tags: [rollback]
+
+    - name: Fail if no current release
+      ansible.builtin.fail:
+        msg: >-
+          No current symlink found at
+          {{ current_link }}
+      when: >-
+        not current_stat.stat.exists
+        | default(false)
+      tags: [rollback]
+
+    - name: List available releases
+      ansible.builtin.find:
+        paths: "{{ releases_dir }}"
+        file_type: directory
+      register: available_releases
+      tags: [rollback]
+
+    - name: Sort releases
+      ansible.builtin.set_fact:
+        sorted_rels: >-
+          {{ available_releases.files
+             | sort(attribute='path')
+             | map(attribute='path')
+             | list }}
+      tags: [rollback]
+
+    - name: Find previous release
+      ansible.builtin.set_fact:
+        target_release: >-
+          {{ rollback_target_path
+             | default(
+               sorted_rels[
+                 sorted_rels.index(
+                   current_stat
+                   .stat.lnk_target
+                 ) - 1
+               ]
+             ) }}
+      when: rollback_target is not defined
+      tags: [rollback]
+
+    - name: Set explicit rollback target
+      ansible.builtin.set_fact:
+        target_release: >-
+          {{ releases_dir }}/{{
+            rollback_target }}
+      when: rollback_target is defined
+      tags: [rollback]
+
+    - name: Verify target release exists
+      ansible.builtin.stat:
+        path: "{{ target_release }}"
+      register: target_stat
+      failed_when: >-
+        not target_stat.stat.exists
+      tags: [rollback]
+
+    - name: Show rollback plan
+      ansible.builtin.debug:
+        msg: >-
+          Rolling back from
+          {{ current_stat.stat.lnk_target
+             | basename }}
+          to {{ target_release | basename }}
+      tags: [rollback]
+
+    # ---------- perform rollback ----------
+
+    - name: Create temporary symlink
+      ansible.builtin.file:
+        src: "{{ target_release }}"
+        dest: "{{ current_link }}.new"
+        state: link
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+      tags: [rollback]
+
+    - name: Atomic symlink swap
+      ansible.builtin.command:
+        cmd: >-
+          mv -Tf {{ current_link }}.new
+          {{ current_link }}
+      changed_when: true
+      tags: [rollback]
+
+    - name: Restart backend
+      ansible.builtin.systemd:
+        name: tradeops-backend
+        state: restarted
+        daemon_reload: true
+      tags: [rollback]
+
+    - name: Reload Nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+      tags: [rollback]
+
+    # ---------- verify ----------
+
+    - name: Wait for backend health
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{
+            backend_port }}/api/health
+        return_content: true
+      register: rb_health
+      retries: 5
+      delay: 3
+      until: rb_health.status == 200
+      tags: [rollback, smoke]
+
+    - name: Verify frontend
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:80/"
+      register: rb_fe
+      retries: 3
+      delay: 2
+      until: rb_fe.status == 200
+      tags: [rollback, smoke]
+
+    # ---------- audit ----------
+
+    - name: Append rollback audit entry
+      ansible.builtin.lineinfile:
+        path: "{{ app_base_dir }}/deploy.log"
+        line: >-
+          {{ ansible_date_time.iso8601 }} |
+          env={{ deploy_env | default('dev') }} |
+          release={{
+            target_release | basename }} |
+          action=ROLLBACK |
+          from={{
+            current_stat.stat.lnk_target
+            | basename }} |
+          deployer={{ lookup('env', 'USER')
+                      | default('ansible') }} |
+          status=SUCCESS
+        create: true
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0640"
+      tags: [rollback, audit]
+
+    - name: Rollback complete
+      ansible.builtin.debug:
+        msg: >-
+          Rollback to
+          {{ target_release | basename }}
+          completed successfully
+      tags: [rollback]
