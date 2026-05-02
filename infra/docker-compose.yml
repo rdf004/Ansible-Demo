@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  target:
+    build:
+      context: .
+      dockerfile: Dockerfile.target
+    ports:
+      - "2222:22"
+      - "8080:80"

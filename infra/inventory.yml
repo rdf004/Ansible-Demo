@@ -1,0 +1,8 @@
+all:
+  hosts:
+    target:
+      ansible_host: localhost
+      ansible_port: 2222
+      ansible_user: root
+      ansible_password: devin
+      ansible_connection: ssh
