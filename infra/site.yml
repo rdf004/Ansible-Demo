@@ -21,9 +21,14 @@
   vars_files:
     - group_vars/all/vars.yml
     - group_vars/all/vault.yml
-    - "environments/{{ env_name }}/vars.yml"
 
   pre_tasks:
+    - name: Load environment-specific vars
+      ansible.builtin.include_vars:
+        file: >-
+          environments/{{ env_name }}/vars.yml
+      tags: [always]
+
     - name: Record release timestamp
       ansible.builtin.set_fact:
         release_ts: >-
