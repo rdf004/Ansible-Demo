@@ -1,0 +1,43 @@
+---
+- name: Deploy TradeOps Application
+  hosts: all
+  become: yes
+  vars_files:
+    - "group_vars/all/vars.yml"
+    - "group_vars/all/vault.yml"
+    - "group_vars/environments/{{ env_name | default('dev') }}.yml"
+
+  pre_tasks:
+    - name: Set release timestamp
+      ansible.builtin.set_fact:
+        release_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+      tags: [always]
+
+    - name: Display deployment info
+      ansible.builtin.debug:
+        msg: |
+          Deploying TradeOps
+          Environment: {{ env_name | default('dev') }}
+          Release: {{ release_timestamp }}
+          Commit: {{ deploy_git_commit }}
+          Deployer: {{ deployer }}
+      tags: [always]
+
+  roles:
+    - { role: preflight, tags: [preflight] }
+    - { role: common, tags: [common] }
+    - { role: security, tags: [security] }
+    - { role: backend, tags: [backend, deploy] }
+    - { role: frontend, tags: [frontend, deploy] }
+    - { role: nginx, tags: [nginx] }
+    - { role: logging, tags: [logging] }
+    - { role: backup, tags: [backup] }
+    - { role: integrity, tags: [integrity, deploy] }
+    - { role: smoketest, tags: [smoketest, deploy] }
+
+  post_tasks:
+    - name: Deployment complete
+      ansible.builtin.debug:
+        msg: >-
+          TradeOps {{ release_timestamp }} deployed successfully
+      tags: [always]

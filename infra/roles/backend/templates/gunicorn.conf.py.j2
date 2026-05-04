@@ -1,0 +1,22 @@
+# Ansible managed — Gunicorn configuration
+bind = "{{ backend_bind }}"
+workers = {{ gunicorn_workers }}
+timeout = {{ gunicorn_timeout }}
+graceful_timeout = {{ gunicorn_graceful_timeout }}
+max_requests = {{ gunicorn_max_requests }}
+max_requests_jitter = {{ gunicorn_max_requests_jitter }}
+loglevel = "{{ gunicorn_log_level | default('info') }}"
+
+# Logging
+accesslog = "{{ app_log_dir }}/gunicorn-access.log"
+errorlog = "{{ app_log_dir }}/gunicorn-error.log"
+access_log_format = (
+    '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s '
+    '"%(f)s" "%(a)s" %(D)s'
+)
+
+# Process naming
+proc_name = "tradeops-backend"
+
+# Preload app for faster worker spawning
+preload_app = True

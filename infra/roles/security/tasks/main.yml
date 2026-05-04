@@ -1,0 +1,47 @@
+---
+- name: Configure UFW defaults (incoming deny)
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+  tags: [security]
+
+- name: Allow outgoing traffic
+  community.general.ufw:
+    policy: allow
+    direction: outgoing
+  tags: [security]
+
+- name: Allow required ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.split('/')[0] }}"
+    proto: "{{ item.split('/')[1] }}"
+  loop: "{{ firewall_allowed_ports }}"
+  tags: [security]
+
+- name: Deploy SSH hardening config
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+    validate: '/usr/sbin/sshd -t -f %s'
+  notify: Restart sshd
+  when: ssh_hardening_enabled | default(false) | bool
+  tags: [security]
+
+- name: Ensure no world-readable files in app directory
+  ansible.builtin.shell: |
+    find {{ app_base_dir }} -perm -o+r -type f \
+      -exec chmod o-r {} \;
+  changed_when: false
+  tags: [security]
+
+- name: Ensure no world-readable directories in app directory
+  ansible.builtin.shell: |
+    find {{ app_base_dir }} -perm -o+rx -type d \
+      -exec chmod o-rx {} \;
+  changed_when: false
+  tags: [security]

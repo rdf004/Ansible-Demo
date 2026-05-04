@@ -1,0 +1,33 @@
+---
+- name: Check connectivity
+  ansible.builtin.ping:
+  tags: [preflight]
+
+- name: Gather disk usage
+  ansible.builtin.shell: |
+    df --output=pcent / | tail -1 | tr -d ' %'
+  register: disk_usage
+  changed_when: false
+  tags: [preflight]
+
+- name: Fail if disk usage above threshold
+  ansible.builtin.fail:
+    msg: >-
+      Disk usage is {{ disk_usage.stdout }}% — exceeds
+      {{ disk_usage_threshold }}% threshold
+  when: disk_usage.stdout | int > disk_usage_threshold
+  tags: [preflight]
+
+- name: Check if port 80 is available or used by nginx
+  ansible.builtin.shell: |
+    ss -tlnp | grep ':80 ' | grep -v nginx || true
+  register: port_80_check
+  changed_when: false
+  tags: [preflight]
+
+- name: Check if backend port is available or used by gunicorn
+  ansible.builtin.shell: |
+    ss -tlnp | grep ':{{ backend_port }} ' | grep -v gunicorn || true
+  register: port_backend_check
+  changed_when: false
+  tags: [preflight]

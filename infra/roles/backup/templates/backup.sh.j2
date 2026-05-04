@@ -1,0 +1,39 @@
+#!/bin/bash
+# Ansible managed — TradeOps Backup Script
+set -euo pipefail
+
+BACKUP_DIR="{{ app_backup_dir }}"
+APP_DIR="{{ app_current_link }}"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+DAY_OF_WEEK=$(date +%u)
+BACKUP_FILE="${BACKUP_DIR}/tradeops_daily_${TIMESTAMP}.tar.gz"
+
+# Create backup
+tar -czf "${BACKUP_FILE}" \
+    -C "$(dirname ${APP_DIR})" \
+    "$(basename ${APP_DIR})" \
+    "{{ app_shared_dir }}" \
+    --exclude='*/venv/*' \
+    --exclude='*/node_modules/*' \
+    2>/dev/null || true
+
+chmod 640 "${BACKUP_FILE}"
+chown {{ app_user }}:{{ app_group }} "${BACKUP_FILE}"
+
+# Weekly backup (on Sunday)
+if [ "${DAY_OF_WEEK}" -eq 7 ]; then
+    cp "${BACKUP_FILE}" \
+       "${BACKUP_DIR}/tradeops_weekly_${TIMESTAMP}.tar.gz"
+fi
+
+# Rotate daily backups — keep {{ backup_daily_keep }}
+ls -t ${BACKUP_DIR}/tradeops_daily_*.tar.gz 2>/dev/null \
+    | tail -n +$(( {{ backup_daily_keep }} + 1 )) \
+    | xargs -r rm -f
+
+# Rotate weekly backups — keep {{ backup_weekly_keep }}
+ls -t ${BACKUP_DIR}/tradeops_weekly_*.tar.gz 2>/dev/null \
+    | tail -n +$(( {{ backup_weekly_keep }} + 1 )) \
+    | xargs -r rm -f
+
+echo "Backup completed: ${BACKUP_FILE}"

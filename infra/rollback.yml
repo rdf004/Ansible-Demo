@@ -1,0 +1,109 @@
+---
+- name: Rollback TradeOps to Previous Release
+  hosts: all
+  become: yes
+  vars_files:
+    - "group_vars/all/vars.yml"
+    - "group_vars/all/vault.yml"
+    - "group_vars/environments/{{ env_name | default('dev') }}.yml"
+
+  tasks:
+    - name: Get current release
+      ansible.builtin.stat:
+        path: "{{ app_current_link }}"
+      register: current_link
+
+    - name: Resolve current symlink target
+      ansible.builtin.command: readlink -f {{ app_current_link }}
+      register: current_target
+      changed_when: false
+
+    - name: List available releases
+      ansible.builtin.find:
+        paths: "{{ app_releases_dir }}"
+        file_type: directory
+      register: available_releases
+
+    - name: Sort releases by name (timestamp)
+      ansible.builtin.set_fact:
+        sorted_releases: >-
+          {{ available_releases.files
+             | sort(attribute='path')
+             | map(attribute='path')
+             | list }}
+
+    - name: Identify previous release
+      ansible.builtin.set_fact:
+        previous_release: >-
+          {{ sorted_releases
+             | reject('equalto', current_target.stdout)
+             | last }}
+      when: sorted_releases | length > 1
+
+    - name: Fail if no previous release available
+      ansible.builtin.fail:
+        msg: >-
+          No previous release available for rollback. Only
+          {{ sorted_releases | length }} release(s) found.
+      when: sorted_releases | length <= 1
+
+    - name: Display rollback info
+      ansible.builtin.debug:
+        msg: |
+          Rolling back TradeOps
+          Current: {{ current_target.stdout }}
+          Target:  {{ previous_release }}
+
+    - name: Update symlink to previous release
+      ansible.builtin.file:
+        src: "{{ previous_release }}"
+        dest: "{{ app_current_link }}"
+        state: link
+        force: yes
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+
+    - name: Reload systemd
+      ansible.builtin.systemd:
+        daemon_reload: yes
+
+    - name: Restart backend service
+      ansible.builtin.systemd:
+        name: tradeops-backend
+        state: restarted
+
+    - name: Reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+
+    - name: Append rollback to audit log
+      ansible.builtin.lineinfile:
+        path: "{{ app_base_dir }}/deploy.log"
+        line: >-
+          {{ ansible_date_time.iso8601 }} | commit=ROLLBACK |
+          deployer={{ deployer | default('ansible') }} |
+          release={{ previous_release | basename }} |
+          status=ROLLBACK from
+          {{ current_target.stdout | basename }}
+        create: yes
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0640"
+
+    - name: "Smoke test: health endpoint after rollback"
+      ansible.builtin.uri:
+        url: "{{ health_check_url }}"
+        method: GET
+        return_content: yes
+        status_code: 200
+      register: health_result
+      retries: 5
+      delay: 3
+      until: health_result.status == 200
+
+    - name: Rollback complete
+      ansible.builtin.debug:
+        msg: >-
+          Rollback to {{ previous_release | basename }}
+          completed successfully

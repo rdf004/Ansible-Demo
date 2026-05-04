@@ -1,0 +1,77 @@
+---
+- name: Install base packages
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-venv
+      - python3-pip
+      - curl
+      - git
+      - acl
+      - ufw
+      - rsync
+      - jq
+      - logrotate
+      - cron
+      - sudo
+      - ca-certificates
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+  tags: [common]
+
+- name: Install NodeSource setup script
+  ansible.builtin.shell: |
+    curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x \
+      | bash -
+  args:
+    creates: /etc/apt/sources.list.d/nodesource.list
+  tags: [common, frontend]
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+  tags: [common, frontend]
+
+- name: Create application group
+  ansible.builtin.group:
+    name: "{{ app_group }}"
+    system: yes
+    state: present
+  tags: [common]
+
+- name: Create application user
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    group: "{{ app_group }}"
+    system: yes
+    shell: /usr/sbin/nologin
+    home: "{{ app_base_dir }}"
+    create_home: no
+    state: present
+  tags: [common]
+
+- name: Create application directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  loop:
+    - "{{ app_base_dir }}"
+    - "{{ app_releases_dir }}"
+    - "{{ app_shared_dir }}"
+    - "{{ app_data_dir }}"
+    - "{{ app_backup_dir }}"
+  tags: [common]
+
+- name: Create log directory
+  ansible.builtin.file:
+    path: "{{ app_log_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0770"
+  tags: [common]

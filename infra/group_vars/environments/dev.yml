@@ -1,0 +1,9 @@
+---
+env_name: dev
+flask_env: development
+flask_debug: "0"
+gunicorn_workers: 2
+gunicorn_log_level: debug
+nginx_rate_limit: "50r/s"
+nginx_rate_limit_burst: 100
+ssh_hardening_enabled: false

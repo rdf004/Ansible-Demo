@@ -1,0 +1,47 @@
+---
+- name: Ensure backup directory exists
+  ansible.builtin.file:
+    path: "{{ app_backup_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [backup]
+
+- name: Template backup script
+  ansible.builtin.template:
+    src: backup.sh.j2
+    dest: /usr/local/bin/tradeops-backup.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [backup]
+
+- name: Schedule daily backup cron
+  ansible.builtin.cron:
+    name: "TradeOps daily backup"
+    user: root
+    hour: "{{ backup_cron_hour }}"
+    minute: "{{ backup_cron_minute }}"
+    job: "/usr/local/bin/tradeops-backup.sh >> {{ app_log_dir }}/backup.log 2>&1"
+  tags: [backup]
+
+- name: Verify latest backup exists and is non-empty
+  ansible.builtin.shell: |
+    set -euo pipefail
+    LATEST=$(ls -t {{ app_backup_dir }}/tradeops_daily_*.tar.gz \
+      2>/dev/null | head -1)
+    if [ -z "$LATEST" ]; then
+      echo "NO_BACKUP_FOUND"
+      exit 0
+    fi
+    SIZE=$(stat -c%s "$LATEST")
+    if [ "$SIZE" -eq 0 ]; then
+      echo "EMPTY_BACKUP"
+      exit 1
+    fi
+    echo "OK: $LATEST ($SIZE bytes)"
+  register: backup_verify
+  changed_when: false
+  failed_when: backup_verify.rc != 0
+  tags: [backup, verify]

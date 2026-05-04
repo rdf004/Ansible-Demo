@@ -1,0 +1,51 @@
+---
+- name: "Smoke test: health endpoint"
+  ansible.builtin.uri:
+    url: "{{ health_check_url }}"
+    method: GET
+    return_content: yes
+    status_code: 200
+  register: health_result
+  retries: "{{ health_check_retries }}"
+  delay: "{{ health_check_delay }}"
+  until: health_result.status == 200
+  tags: [smoketest, deploy]
+
+- name: "Smoke test: verify health response"
+  ansible.builtin.assert:
+    that:
+      - health_result.json.status == "healthy"
+    fail_msg: "Health check returned unexpected response"
+  tags: [smoketest, deploy]
+
+- name: "Smoke test: frontend returns 200"
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:80/"
+    method: GET
+    status_code: 200
+  register: frontend_result
+  retries: 3
+  delay: 2
+  until: frontend_result.status == 200
+  tags: [smoketest, deploy]
+
+- name: "Smoke test: API returns valid JSON"
+  ansible.builtin.uri:
+    url: >-
+      http://127.0.0.1:{{ backend_port }}/api/transactions
+    method: GET
+    return_content: yes
+    status_code: 200
+  register: api_result
+  retries: 3
+  delay: 2
+  until: api_result.status == 200
+  tags: [smoketest, deploy]
+
+- name: "Smoke test: verify API response is a list"
+  ansible.builtin.assert:
+    that:
+      - api_result.json is defined
+      - api_result.json | type_debug == "list"
+    fail_msg: "API did not return a valid JSON list"
+  tags: [smoketest, deploy]

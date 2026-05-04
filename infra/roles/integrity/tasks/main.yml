@@ -1,0 +1,36 @@
+---
+- name: Generate file integrity checksums
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd {{ app_releases_dir }}/{{ release_timestamp }}
+    find . -type f \
+      -not -path '*/venv/*' \
+      -not -path '*/node_modules/*' \
+      -not -path './MANIFEST.sha256' \
+      -exec sha256sum {} \; > MANIFEST.sha256
+  become_user: "{{ app_user }}"
+  tags: [integrity, deploy]
+
+- name: Set manifest permissions
+  ansible.builtin.file:
+    path: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/MANIFEST.sha256
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  tags: [integrity, deploy]
+
+- name: Append deployment audit log
+  ansible.builtin.lineinfile:
+    path: "{{ app_base_dir }}/deploy.log"
+    line: >-
+      {{ ansible_date_time.iso8601 }} |
+      commit={{ deploy_git_commit }} |
+      deployer={{ deployer }} |
+      release={{ release_timestamp }} | status=SUCCESS
+    create: yes
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  tags: [integrity, deploy]

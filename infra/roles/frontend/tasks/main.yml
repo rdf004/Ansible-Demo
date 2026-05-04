@@ -1,0 +1,68 @@
+---
+- name: Create frontend release directory
+  ansible.builtin.file:
+    path: "{{ app_releases_dir }}/{{ release_timestamp }}/frontend"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [frontend, deploy]
+
+- name: Ensure npm cache directory exists
+  ansible.builtin.file:
+    path: /tmp/tradeops-npm
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [frontend, deploy]
+
+- name: Copy frontend source code
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../frontend/"
+    dest: "{{ app_releases_dir }}/{{ release_timestamp }}/frontend/"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+    directory_mode: "0750"
+  tags: [frontend, deploy]
+
+- name: Install npm dependencies
+  ansible.builtin.command:
+    cmd: npm ci
+    chdir: >-
+      {{ app_releases_dir }}/{{ release_timestamp }}/frontend
+  become_user: "{{ app_user }}"
+  environment:
+    HOME: "/tmp/tradeops-npm"
+  tags: [frontend, deploy]
+
+- name: Build frontend
+  ansible.builtin.command:
+    cmd: npm run build
+    chdir: >-
+      {{ app_releases_dir }}/{{ release_timestamp }}/frontend
+  become_user: "{{ app_user }}"
+  environment:
+    HOME: "/tmp/tradeops-npm"
+    NODE_ENV: production
+  tags: [frontend, deploy]
+
+- name: Remove node_modules after build
+  ansible.builtin.file:
+    path: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/frontend/node_modules
+    state: absent
+  tags: [frontend, deploy]
+
+- name: Set frontend dist permissions
+  ansible.builtin.file:
+    path: >-
+      {{ app_releases_dir }}/{{ release_timestamp }}/frontend/dist
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+    recurse: yes
+  tags: [frontend, deploy]

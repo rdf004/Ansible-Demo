@@ -1,0 +1,7 @@
+[Unit]
+Description=TradeOps Health Check
+OnFailure=tradeops-backend.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl -sf {{ health_check_url }} -o /dev/null

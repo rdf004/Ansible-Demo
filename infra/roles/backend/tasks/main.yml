@@ -1,0 +1,158 @@
+---
+- name: Create release directory
+  ansible.builtin.file:
+    path: "{{ app_releases_dir }}/{{ release_timestamp }}/backend"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [backend, deploy]
+
+- name: Copy backend source code
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../backend/"
+    dest: "{{ app_releases_dir }}/{{ release_timestamp }}/backend/"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+    directory_mode: "0750"
+  tags: [backend, deploy]
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: >-
+      python3 -m venv
+      {{ app_releases_dir }}/{{ release_timestamp }}/backend/venv
+    creates: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/backend/venv/bin/python
+  become_user: "{{ app_user }}"
+  tags: [backend, deploy]
+
+- name: Ensure pip is up-to-date in venv
+  ansible.builtin.pip:
+    name:
+      - pip
+      - setuptools
+      - wheel
+    state: latest
+    virtualenv: >-
+      {{ app_releases_dir }}/{{ release_timestamp }}/backend/venv
+  become_user: "{{ app_user }}"
+  tags: [backend, deploy]
+
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    requirements: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/backend/requirements.txt
+    virtualenv: >-
+      {{ app_releases_dir }}/{{ release_timestamp }}/backend/venv
+  become_user: "{{ app_user }}"
+  tags: [backend, deploy]
+
+- name: Ensure gunicorn is installed in venv
+  ansible.builtin.pip:
+    name: gunicorn
+    virtualenv: >-
+      {{ app_releases_dir }}/{{ release_timestamp }}/backend/venv
+  become_user: "{{ app_user }}"
+  tags: [backend, deploy]
+
+- name: Template wsgi.py
+  ansible.builtin.template:
+    src: wsgi.py.j2
+    dest: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/backend/wsgi.py
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  tags: [backend, deploy]
+
+- name: Template gunicorn config
+  ansible.builtin.template:
+    src: gunicorn.conf.py.j2
+    dest: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/backend/gunicorn.conf.py
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  tags: [backend, deploy]
+
+- name: Template systemd service
+  ansible.builtin.template:
+    src: tradeops-backend.service.j2
+    dest: /etc/systemd/system/tradeops-backend.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart tradeops backend
+  tags: [backend, deploy]
+
+- name: Template health check service
+  ansible.builtin.template:
+    src: tradeops-healthcheck.service.j2
+    dest: /etc/systemd/system/tradeops-healthcheck.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [backend, deploy]
+
+- name: Template health check timer
+  ansible.builtin.template:
+    src: tradeops-healthcheck.timer.j2
+    dest: /etc/systemd/system/tradeops-healthcheck.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [backend, deploy]
+
+- name: Update current symlink
+  ansible.builtin.file:
+    src: "{{ app_releases_dir }}/{{ release_timestamp }}"
+    dest: "{{ app_current_link }}"
+    state: link
+    force: yes
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+  notify:
+    - Restart tradeops backend
+  tags: [backend, deploy]
+
+- name: Flush handlers to restart services
+  ansible.builtin.meta: flush_handlers
+  tags: [backend, deploy]
+
+- name: Enable and start backend service
+  ansible.builtin.systemd:
+    name: tradeops-backend
+    state: started
+    enabled: yes
+  tags: [backend, deploy]
+
+- name: Enable and start health check timer
+  ansible.builtin.systemd:
+    name: tradeops-healthcheck.timer
+    state: started
+    enabled: yes
+  tags: [backend, deploy]
+
+- name: Clean up old releases
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd {{ app_releases_dir }}
+    CURRENT=$(readlink -f {{ app_current_link }})
+    ls -dt */ 2>/dev/null | while read dir; do
+      FULL="{{ app_releases_dir }}/${dir%/}"
+      if [ "$FULL" != "$CURRENT" ]; then
+        echo "$FULL"
+      fi
+    done | tail -n +{{ max_releases }} | xargs -r rm -rf
+  changed_when: false
+  tags: [backend, deploy]

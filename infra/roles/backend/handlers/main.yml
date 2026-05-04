@@ -1,0 +1,10 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Restart tradeops backend
+  ansible.builtin.systemd:
+    name: tradeops-backend
+    state: restarted
+    enabled: yes
