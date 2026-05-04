@@ -11,47 +11,44 @@ upstream backend {
 
 server {
     listen 80;
+{% if nginx_ssl_enabled | default(false) %}
+    listen 443 ssl;
+    ssl_certificate {{ nginx_ssl_cert }};
+    ssl_certificate_key {{ nginx_ssl_key }};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+{% endif %}
     server_name {{ nginx_server_name }};
 
-    # ── Request limits ──────────────────────────
-    client_max_body_size {{ nginx_client_max_body_size }};
+    # ── Request limits ─────────────────────
+    client_max_body_size
+        {{ nginx_client_max_body_size }};
 
-    # ── Security headers ────────────────────────
-    add_header X-Frame-Options "DENY" always;
-    add_header X-Content-Type-Options
-        "nosniff" always;
-    add_header Referrer-Policy
-        "strict-origin-when-cross-origin" always;
-    add_header Strict-Transport-Security
-        "max-age=31536000; includeSubDomains"
-        always;
-{%- set csp = "default-src 'self'; " +
-    "script-src 'self'; " +
-    "style-src 'self' 'unsafe-inline'" -%}
-    add_header Content-Security-Policy
-        "{{ csp }}" always;
+    # ── Security headers (shared snippet) ──
+    include
+        /etc/nginx/snippets/security-headers.conf;
 
-    # ── Logging ─────────────────────────────────
+    # ── Logging ────────────────────────────
     access_log {{ log_dir }}/nginx-access.log;
     error_log  {{ log_dir }}/nginx-error.log;
 
-    # ── Frontend static files ───────────────────
+    # ── Frontend static files ──────────────
     root {{ current_link }}/frontend/dist;
     index index.html;
 
     location / {
         try_files $uri $uri/ /index.html;
 
-        # Cache static assets
         location ~* \.(js|css|png|jpg|ico|svg|woff2?)$ {
-            expires 7d;
+            include
+                /etc/nginx/snippets/security-headers.conf;
             add_header Cache-Control
-                "public, immutable";
+                "public, max-age=604800, immutable";
             access_log off;
         }
     }
 
-    # ── API reverse proxy ───────────────────────
+    # ── API reverse proxy ──────────────────
     location /api/ {
         limit_req zone=tradeops
             burst={{ nginx_rate_limit_burst }}
@@ -69,7 +66,7 @@ server {
         proxy_send_timeout 60s;
     }
 
-    # ── Gzip compression ───────────────────────
+    # ── Gzip compression ──────────────────
     gzip on;
     gzip_vary on;
     gzip_proxied any;

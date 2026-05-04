@@ -17,6 +17,7 @@
 - name: Deploy TradeOps application
   hosts: all
   gather_facts: true
+  become: true
 
   vars_files:
     - group_vars/all/vars.yml

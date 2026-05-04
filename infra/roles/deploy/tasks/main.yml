@@ -24,13 +24,13 @@
   tags: [deploy]
 
 - name: Swap current symlink to new release
-  ansible.builtin.file:
-    src: "{{ release_dir }}"
-    dest: "{{ current_link }}"
-    state: link
-    force: true
-    owner: "{{ app_user }}"
-    group: "{{ app_group }}"
+  ansible.builtin.command:
+    cmd: >-
+      bash -c 'ln -sfn {{ release_dir }}
+      {{ current_link }}.tmp &&
+      mv -Tf {{ current_link }}.tmp
+      {{ current_link }}'
+  changed_when: true
   tags: [deploy]
 
 - name: Reload systemd daemon

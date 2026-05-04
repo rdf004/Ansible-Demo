@@ -1,10 +1,17 @@
+# NOTE: This container runs systemd as PID 1 for
+# Ansible integration testing. privileged mode is
+# required because systemd needs full access to
+# cgroups and kernel interfaces to manage services.
+# Used ONLY for local dev / CI testing — never for
+# production workloads.
+# See: https://systemd.io/CONTAINER_INTERFACE
 services:
   target:
     build:
       context: .
       dockerfile: Dockerfile.target
     privileged: true
-    cgroup: host
+    cgroupns: host
     tmpfs:
       - /run
       - /run/lock

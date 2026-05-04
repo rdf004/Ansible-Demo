@@ -32,6 +32,11 @@ nginx_client_max_body_size: "10m"
 nginx_rate_limit_zone: "10r/s"
 nginx_rate_limit_burst: 20
 
+# ── TLS ──────────────────────────────────────────
+nginx_ssl_enabled: false
+nginx_ssl_cert: ""
+nginx_ssl_key: ""
+
 # ── Firewall ────────────────────────────────────
 firewall_enabled: true
 allowed_ports:

@@ -13,6 +13,7 @@
 - name: Rollback TradeOps to previous release
   hosts: all
   gather_facts: true
+  become: true
 
   vars_files:
     - group_vars/all/vars.yml
@@ -82,13 +83,14 @@
           to {{ rollback_release | basename }}
 
     - name: Swap symlink to previous release
-      ansible.builtin.file:
-        src: "{{ rollback_release }}"
-        dest: "{{ current_link }}"
-        state: link
-        force: true
-        owner: "{{ app_user }}"
-        group: "{{ app_group }}"
+      ansible.builtin.command:
+        cmd: >-
+          bash -c 'ln -sfn
+          {{ rollback_release }}
+          {{ current_link }}.tmp &&
+          mv -Tf {{ current_link }}.tmp
+          {{ current_link }}'
+      changed_when: true
 
     - name: Restart backend service
       ansible.builtin.systemd:

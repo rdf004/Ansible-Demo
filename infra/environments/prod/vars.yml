@@ -4,6 +4,13 @@ env_name: prod
 ssh_hardening_enabled: true
 firewall_enabled: true
 
+# TLS required in production
+nginx_ssl_enabled: true
+nginx_ssl_cert: >-
+  /etc/ssl/certs/tradeops.crt
+nginx_ssl_key: >-
+  /etc/ssl/private/tradeops.key
+
 gunicorn_workers: 4
 gunicorn_timeout: 60
 nginx_rate_limit_zone: "10r/s"

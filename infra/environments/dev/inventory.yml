@@ -5,8 +5,17 @@ all:
       ansible_host: localhost
       ansible_port: 2222
       ansible_user: root
-      ansible_password: devin
+      ansible_password: !vault |
+        $ANSIBLE_VAULT;1.1;AES256
+        383631353064353538653137663535663333343863306436346664633633
+        326561386361313933626464613938656163633735396261626365633032
+        366366660a66646238386263616265376137303831313664306439353132
+        643662303734313533396264643130343130636532633730373331396265
+        3466303631383031630a6232333061613530363836646631393632643232
+        333933643438643239336364
       ansible_connection: ssh
+      ansible_ssh_common_args: >-
+        -o StrictHostKeyChecking=no
   vars:
     env_name: dev
     ansible_become: false

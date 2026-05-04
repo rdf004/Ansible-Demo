@@ -17,20 +17,34 @@
 - name: Fail when disk above threshold
   ansible.builtin.fail:
     msg: >-
-      Disk usage is {{ preflight_disk_pct.stdout }}%
+      Disk usage is
+      {{ preflight_disk_pct.stdout }}%
       (threshold {{ disk_usage_threshold }}%)
   when: >-
     preflight_disk_pct.stdout | int
     > disk_usage_threshold | int
   tags: [preflight]
 
-- name: Check port 80 is not held by others
-  ansible.builtin.wait_for:
-    port: 80
-    state: stopped
-    timeout: 5
-  ignore_errors: true
+- name: Check port 80 owner
+  ansible.builtin.shell: |
+    set -o pipefail
+    ss -tlnp sport = :80 \
+      | tail -n +2 \
+      | grep -v nginx || true
+  args:
+    executable: /bin/bash
   register: preflight_port_80
+  changed_when: false
+  tags: [preflight]
+
+- name: Fail if port 80 held by non-nginx
+  ansible.builtin.fail:
+    msg: >-
+      Port 80 is in use by a non-nginx process
+  when: >-
+    preflight_port_80.stdout | length > 0
+    and 'nginx' not in
+    preflight_port_80.stdout
   tags: [preflight]
 
 - name: Check port 443 is available
@@ -45,9 +59,10 @@
 - name: Report port availability
   ansible.builtin.debug:
     msg: >-
-      Port 80 {{ 'available'
-        if preflight_port_80 is succeeded
-        else 'in use (nginx may own it)' }},
+      Port 80 {{ 'available or held by nginx'
+        if preflight_port_80.stdout
+           | length == 0
+        else 'in use by non-nginx' }},
       Port 443 {{ 'available'
         if preflight_port_443 is succeeded
         else 'in use' }}

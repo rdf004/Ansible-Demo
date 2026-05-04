@@ -26,6 +26,8 @@ tar czf "$TARGET_DIR/$ARCHIVE_NAME" \
   --exclude='releases/*/backend/venv' \
   --exclude='releases/*/frontend/node_modules' \
   shared/ \
+  deploy.log \
+  current/manifest.sha256 \
   2>/dev/null || true
 
 echo "[$(date -Iseconds)] $BACKUP_TYPE backup: \
