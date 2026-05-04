@@ -8,9 +8,12 @@
     mode: "0750"
   tags: [frontend, deploy]
 
+# Persistent npm cache. Previously /tmp, which is wiped by
+# systemd-tmpfiles every boot — wiping the cache forces every
+# deploy to re-download every package.
 - name: Ensure npm cache directory exists
   ansible.builtin.file:
-    path: /tmp/tradeops-npm
+    path: /var/cache/tradeops-npm
     state: directory
     owner: "{{ app_user }}"
     group: "{{ app_group }}"
@@ -34,7 +37,7 @@
       {{ app_releases_dir }}/{{ release_timestamp }}/frontend
   become_user: "{{ app_user }}"
   environment:
-    HOME: "/tmp/tradeops-npm"
+    HOME: "/var/cache/tradeops-npm"
   tags: [frontend, deploy]
 
 - name: Build frontend
@@ -44,7 +47,7 @@
       {{ app_releases_dir }}/{{ release_timestamp }}/frontend
   become_user: "{{ app_user }}"
   environment:
-    HOME: "/tmp/tradeops-npm"
+    HOME: "/var/cache/tradeops-npm"
     NODE_ENV: production
   tags: [frontend, deploy]
 

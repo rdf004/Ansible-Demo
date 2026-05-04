@@ -13,6 +13,31 @@
         release_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
       tags: [always]
 
+    # Resolve the git commit being deployed so the audit log
+    # records something meaningful when the operator forgets to
+    # pass -e deploy_git_commit=<sha>. delegate_to localhost +
+    # run_once: the commit is a property of the playbook
+    # invocation, not the target host.
+    - name: Resolve deploy_git_commit from local checkout
+      ansible.builtin.command:
+        cmd: git -C "{{ playbook_dir }}/.." rev-parse --short HEAD
+      register: git_head
+      delegate_to: localhost
+      run_once: true
+      become: false
+      changed_when: false
+      failed_when: false
+      tags: [always]
+
+    - name: Override deploy_git_commit when not user-specified
+      ansible.builtin.set_fact:
+        deploy_git_commit: "{{ git_head.stdout | trim }}"
+      when:
+        - deploy_git_commit == "unknown"
+        - git_head.rc | default(1) == 0
+        - git_head.stdout | default("") | trim != ""
+      tags: [always]
+
     - name: Display deployment info
       ansible.builtin.debug:
         msg: |
@@ -33,6 +58,7 @@
     - { role: logging, tags: [logging] }
     - { role: backup, tags: [backup] }
     - { role: integrity, tags: [integrity, deploy] }
+    - { role: release, tags: [release, deploy] }
     - { role: smoketest, tags: [smoketest, deploy] }
 
   post_tasks:

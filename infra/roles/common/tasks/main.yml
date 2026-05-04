@@ -1,4 +1,18 @@
 ---
+# Refresh the apt cache once up front. We deliberately don't
+# use cache_valid_time here — Ansible's apt module checks
+# /var/cache/apt/pkgcache.bin's mtime, which on a freshly
+# pulled container can be from the base image build time even
+# though /var/lib/apt/lists is empty. That fools the staleness
+# check and lets `apt install` fail with "No package
+# matching ... is available". An unconditional refresh adds a
+# few seconds and is the cost of being correct on first deploy.
+- name: Refresh apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+  changed_when: false
+  tags: [common]
+
 - name: Install base packages
   ansible.builtin.apt:
     name:
@@ -16,16 +30,46 @@
       - sudo
       - ca-certificates
     state: present
-    update_cache: yes
-    cache_valid_time: 3600
   tags: [common]
 
-- name: Install NodeSource setup script
-  ansible.builtin.shell: |
-    curl -fsSL https://deb.nodesource.com/setup_{{ node_version }}.x \
-      | bash -
-  args:
-    creates: /etc/apt/sources.list.d/nodesource.list
+# NodeSource installation. The upstream `curl … | bash` script
+# is convenient but auditable-hostile (arbitrary remote code
+# every run). Install the GPG key + apt source manually so the
+# only network surface is `apt update`/`apt install`, which can
+# be inspected and pinned via the standard apt machinery.
+- name: Ensure /etc/apt/keyrings exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [common, frontend]
+
+- name: Fetch NodeSource signing key
+  ansible.builtin.get_url:
+    url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    dest: /etc/apt/keyrings/nodesource.asc
+    owner: root
+    group: root
+    mode: "0644"
+    force: no
+  tags: [common, frontend]
+
+- name: Add NodeSource apt repository
+  ansible.builtin.template:
+    src: nodesource.list.j2
+    dest: /etc/apt/sources.list.d/nodesource.list
+    owner: root
+    group: root
+    mode: "0644"
+  register: nodesource_repo
+  tags: [common, frontend]
+
+- name: Refresh apt cache after NodeSource install
+  ansible.builtin.apt:
+    update_cache: yes
+  when: nodesource_repo.changed
   tags: [common, frontend]
 
 - name: Install Node.js

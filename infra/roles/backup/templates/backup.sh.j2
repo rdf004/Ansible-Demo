@@ -3,19 +3,28 @@
 set -euo pipefail
 
 BACKUP_DIR="{{ app_backup_dir }}"
-APP_DIR="{{ app_current_link }}"
+APP_BASE="{{ app_base_dir }}"
+APP_CURRENT="{{ app_current_link }}"
+SHARED_REL="$(basename {{ app_shared_dir }})"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 DAY_OF_WEEK=$(date +%u)
 BACKUP_FILE="${BACKUP_DIR}/tradeops_daily_${TIMESTAMP}.tar.gz"
 
-# Create backup
+# Resolve the release the symlink points at so tar archives
+# the actual release directory contents, not the symlink. Both
+# the release path and the shared path are then expressed
+# relative to APP_BASE so a single -C anchors them, and tar
+# stores clean relative paths in the archive (no /opt/tradeops
+# leakage).
+RELEASE_DIR="$(readlink -f "${APP_CURRENT}")"
+RELEASE_REL="releases/$(basename "${RELEASE_DIR}")"
+
 tar -czf "${BACKUP_FILE}" \
-    -C "$(dirname ${APP_DIR})" \
-    "$(basename ${APP_DIR})" \
-    "{{ app_shared_dir }}" \
+    -C "${APP_BASE}" \
     --exclude='*/venv/*' \
     --exclude='*/node_modules/*' \
-    2>/dev/null || true
+    "${RELEASE_REL}" \
+    "${SHARED_REL}"
 
 chmod 640 "${BACKUP_FILE}"
 chown {{ app_user }}:{{ app_group }} "${BACKUP_FILE}"

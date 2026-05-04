@@ -26,6 +26,14 @@ gunicorn_max_requests_jitter: 50
 # Vite 8 (used by frontend/package.json) requires Node 20.19+
 node_version: "20"
 
+# Pinned Python build tooling. `state: latest` made every run
+# pull whatever pip/setuptools/wheel happened to be on PyPI
+# that day, which is a no-go for "regulated financial services"
+# reproducibility. Bump these intentionally and re-test.
+python_pip_version: "24.0"
+python_setuptools_version: "70.0.0"
+python_wheel_version: "0.43.0"
+
 # Nginx
 nginx_worker_processes: auto
 nginx_rate_limit: "10r/s"

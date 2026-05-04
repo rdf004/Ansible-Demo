@@ -1,5 +1,8 @@
 # Ansible managed — do not edit manually
-Protocol 2
+# `Protocol 2` was removed in OpenSSH 8.9 (Ubuntu 22.04 ships
+# 8.9p1) and `sshd -t` rejects the directive, which would break
+# the validate step on this template. SSH protocol 1 hasn't
+# been compiled in for a decade so the line is redundant.
 PermitRootLogin no
 PasswordAuthentication no
 PubkeyAuthentication yes

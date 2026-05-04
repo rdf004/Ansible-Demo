@@ -32,16 +32,68 @@
   when: ssh_hardening_enabled | default(false) | bool
   tags: [security]
 
-- name: Ensure no world-readable files in app directory
-  ansible.builtin.shell: |
-    find {{ app_base_dir }} -perm -o+r -type f \
-      -exec chmod o-r {} \;
+# Probe-then-fix so changed_when actually reflects whether
+# anything got mutated. Previous version was unconditionally
+# `changed_when: false`, which masked drift in CI/idempotency
+# tests — every chmod ran but every task always reported "ok".
+- name: Find world-readable files in app directory
+  ansible.builtin.command:
+    argv:
+      - find
+      - "{{ app_base_dir }}"
+      - -perm
+      - -o+r
+      - -type
+      - f
+  register: world_readable_files
   changed_when: false
   tags: [security]
 
-- name: Ensure no world-readable directories in app directory
-  ansible.builtin.shell: |
-    find {{ app_base_dir }} -perm -o+rx -type d \
-      -exec chmod o-rx {} \;
+- name: Strip world-read bit from app files
+  ansible.builtin.command:
+    argv:
+      - find
+      - "{{ app_base_dir }}"
+      - -perm
+      - -o+r
+      - -type
+      - f
+      - -exec
+      - chmod
+      - o-r
+      - "{}"
+      - +
+  when: world_readable_files.stdout | trim != ""
+  changed_when: world_readable_files.stdout | trim != ""
+  tags: [security]
+
+- name: Find world-traversable directories in app directory
+  ansible.builtin.command:
+    argv:
+      - find
+      - "{{ app_base_dir }}"
+      - -perm
+      - -o+rx
+      - -type
+      - d
+  register: world_readable_dirs
   changed_when: false
+  tags: [security]
+
+- name: Strip world-rx bits from app directories
+  ansible.builtin.command:
+    argv:
+      - find
+      - "{{ app_base_dir }}"
+      - -perm
+      - -o+rx
+      - -type
+      - d
+      - -exec
+      - chmod
+      - o-rx
+      - "{}"
+      - +
+  when: world_readable_dirs.stdout | trim != ""
+  changed_when: world_readable_dirs.stdout | trim != ""
   tags: [security]

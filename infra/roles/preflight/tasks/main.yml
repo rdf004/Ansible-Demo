@@ -18,16 +18,41 @@
   when: disk_usage.stdout | int > disk_usage_threshold
   tags: [preflight]
 
-- name: Check if port 80 is available or used by nginx
+# Both port checks pipe through `|| true` so the task itself
+# never fails — which is what we want, but we then have to
+# assert on the captured stdout. An empty stdout means "no
+# listener that isn't ours". A non-empty stdout means a
+# foreign process is bound to the port and the deploy must
+# fail fast instead of silently colliding.
+- name: Check if port 80 is free or already nginx
   ansible.builtin.shell: |
     ss -tlnp | grep ':80 ' | grep -v nginx || true
   register: port_80_check
   changed_when: false
   tags: [preflight]
 
-- name: Check if backend port is available or used by gunicorn
+- name: Fail if a non-nginx process is on port 80
+  ansible.builtin.fail:
+    msg: >-
+      Port 80 is held by a process other than nginx:
+      {{ port_80_check.stdout }}
+  when: port_80_check.stdout | trim != ""
+  tags: [preflight]
+
+- name: Check if backend port is free or already gunicorn
   ansible.builtin.shell: |
-    ss -tlnp | grep ':{{ backend_port }} ' | grep -v gunicorn || true
+    ss -tlnp | grep ':{{ backend_port }} ' \
+      | grep -v gunicorn || true
+  args:
+    executable: /bin/bash
   register: port_backend_check
   changed_when: false
+  tags: [preflight]
+
+- name: Fail if a non-gunicorn process is on backend port
+  ansible.builtin.fail:
+    msg: >-
+      Port {{ backend_port }} is held by a process other than
+      gunicorn: {{ port_backend_check.stdout }}
+  when: port_backend_check.stdout | trim != ""
   tags: [preflight]

@@ -29,13 +29,17 @@
   become_user: "{{ app_user }}"
   tags: [backend, deploy]
 
-- name: Ensure pip is up-to-date in venv
+# Pin pip/setuptools/wheel to known versions so deployment is
+# reproducible across reruns. Bumping these is an intentional
+# change that goes through the normal review cycle in
+# group_vars/all/vars.yml, not a side effect of when you
+# happened to run the playbook.
+- name: Install pinned pip/setuptools/wheel in venv
   ansible.builtin.pip:
     name:
-      - pip
-      - setuptools
-      - wheel
-    state: latest
+      - "pip=={{ python_pip_version }}"
+      - "setuptools=={{ python_setuptools_version }}"
+      - "wheel=={{ python_wheel_version }}"
     virtualenv: >-
       {{ app_releases_dir }}/{{ release_timestamp }}/backend/venv
   become_user: "{{ app_user }}"
@@ -97,6 +101,11 @@
     mode: "0640"
   tags: [backend, deploy]
 
+# Don't notify the restart handler here. On first deploy the
+# `current` symlink doesn't exist yet so gunicorn would fail
+# with status=203/EXEC. The `release` role unconditionally
+# restarts the backend AFTER swapping the symlink, which is
+# also what we want on subsequent deploys to pick up new code.
 - name: Template systemd service
   ansible.builtin.template:
     src: tradeops-backend.service.j2
@@ -106,7 +115,16 @@
     mode: "0644"
   notify:
     - Reload systemd
-    - Restart tradeops backend
+  tags: [backend, deploy]
+
+- name: Template restart-helper service for OnFailure
+  ansible.builtin.template:
+    src: tradeops-backend-restart.service.j2
+    dest: /etc/systemd/system/tradeops-backend-restart.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
   tags: [backend, deploy]
 
 - name: Template health check service
@@ -129,27 +147,19 @@
   notify: Reload systemd
   tags: [backend, deploy]
 
-- name: Update current symlink
-  ansible.builtin.file:
-    src: "{{ app_releases_dir }}/{{ release_timestamp }}"
-    dest: "{{ app_current_link }}"
-    state: link
-    force: yes
-    owner: "{{ app_user }}"
-    group: "{{ app_group }}"
-  notify:
-    - Restart tradeops backend
-  tags: [backend, deploy]
+# Symlink swap and release retention now live in the `release`
+# role so a `--tags frontend` deploy still publishes the new
+# release. See infra/roles/release/. The backend service is
+# enabled here but actually started by the release role AFTER
+# the symlink points at the new build (otherwise systemd
+# blocks on WorkingDirectory={{ app_current_link }}/backend not
+# existing on first deploy).
 
-- name: Flush handlers to restart services
-  ansible.builtin.meta: flush_handlers
-  tags: [backend, deploy]
-
-- name: Enable and start backend service
+- name: Enable backend service
   ansible.builtin.systemd:
     name: tradeops-backend
-    state: started
     enabled: yes
+    daemon_reload: yes
   tags: [backend, deploy]
 
 - name: Enable and start health check timer
@@ -157,20 +167,4 @@
     name: tradeops-healthcheck.timer
     state: started
     enabled: yes
-  tags: [backend, deploy]
-
-- name: Clean up old releases
-  ansible.builtin.shell: |
-    set -euo pipefail
-    cd {{ app_releases_dir }}
-    CURRENT=$(readlink -f {{ app_current_link }})
-    ls -dt */ 2>/dev/null | while read dir; do
-      FULL="{{ app_releases_dir }}/${dir%/}"
-      if [ "$FULL" != "$CURRENT" ]; then
-        echo "$FULL"
-      fi
-    done | tail -n +{{ max_releases }} | xargs -r rm -rf
-  args:
-    executable: /bin/bash
-  changed_when: false
   tags: [backend, deploy]

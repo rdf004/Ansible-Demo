@@ -10,9 +10,13 @@ loglevel = "{{ gunicorn_log_level | default('info') }}"
 # Logging
 accesslog = "{{ app_log_dir }}/gunicorn-access.log"
 errorlog = "{{ app_log_dir }}/gunicorn-error.log"
+# Structured JSON access log — keeps each line trivially
+# parseable by jq, Loki, ES, etc. without a custom grok pattern.
 access_log_format = (
-    '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s '
-    '"%(f)s" "%(a)s" %(D)s'
+    '{"remote":"%(h)s","time":"%(t)s",'
+    '"request":"%(r)s","status":%(s)s,'
+    '"bytes":"%(b)s","referrer":"%(f)s",'
+    '"user_agent":"%(a)s","duration_us":%(D)s}'
 )
 
 # Process naming

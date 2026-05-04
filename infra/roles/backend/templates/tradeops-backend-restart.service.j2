@@ -1,0 +1,15 @@
+# Ansible managed — TradeOps Backend Restart Helper
+#
+# Invoked via OnFailure= from tradeops-healthcheck.service so a
+# failed health probe actually restarts the backend.
+# OnFailure=tradeops-backend.service is a no-op against an
+# already-running unit, so we route through this oneshot which
+# unconditionally calls `systemctl restart tradeops-backend`.
+
+[Unit]
+Description=Restart TradeOps Backend (health-check failure handler)
+After=tradeops-backend.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart tradeops-backend.service
