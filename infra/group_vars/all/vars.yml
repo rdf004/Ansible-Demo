@@ -23,7 +23,8 @@ gunicorn_max_requests: 1000
 gunicorn_max_requests_jitter: 50
 
 # Frontend
-node_version: "18"
+# Vite 8 (used by frontend/package.json) requires Node 20.19+
+node_version: "20"
 
 # Nginx
 nginx_worker_processes: auto

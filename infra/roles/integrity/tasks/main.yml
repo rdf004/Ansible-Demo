@@ -8,6 +8,9 @@
       -not -path '*/node_modules/*' \
       -not -path './MANIFEST.sha256' \
       -exec sha256sum {} \; > MANIFEST.sha256
+  args:
+    executable: /bin/bash
+  become: yes
   become_user: "{{ app_user }}"
   tags: [integrity, deploy]
 

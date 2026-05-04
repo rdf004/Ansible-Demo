@@ -59,6 +59,22 @@
   become_user: "{{ app_user }}"
   tags: [backend, deploy]
 
+- name: Pre-create backend log files with correct ownership
+  ansible.builtin.file:
+    path: "{{ app_log_dir }}/{{ item }}"
+    state: touch
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  loop:
+    - backend.log
+    - backend-error.log
+    - gunicorn-access.log
+    - gunicorn-error.log
+  tags: [backend, deploy]
+
 - name: Template wsgi.py
   ansible.builtin.template:
     src: wsgi.py.j2
@@ -154,5 +170,7 @@
         echo "$FULL"
       fi
     done | tail -n +{{ max_releases }} | xargs -r rm -rf
+  args:
+    executable: /bin/bash
   changed_when: false
   tags: [backend, deploy]

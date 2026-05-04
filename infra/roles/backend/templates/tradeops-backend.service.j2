@@ -18,11 +18,13 @@ KillSignal=SIGTERM
 TimeoutStopSec=30
 Restart=on-failure
 RestartSec=5
-StandardOutput=append:{{ app_log_dir }}/backend.log
-StandardError=append:{{ app_log_dir }}/backend-error.log
+StandardOutput=journal
+StandardError=journal
 
-# Health check — restart if unhealthy
-WatchdogSec=30
+# Health check is handled by tradeops-healthcheck.timer + Restart=on-failure.
+# WatchdogSec is intentionally NOT set: stock gunicorn implements sd_notify
+# READY=1 / STOPPING=1 but does not emit periodic WATCHDOG=1 pings, so
+# enabling it would trigger spurious aborts every WatchdogSec seconds.
 
 # Security hardening
 NoNewPrivileges=true

@@ -7,6 +7,14 @@
     cache_valid_time: 3600
   tags: [nginx]
 
+- name: Grant nginx (www-data) group access to app files
+  ansible.builtin.user:
+    name: www-data
+    groups: "{{ app_group }}"
+    append: yes
+  notify: Restart nginx
+  tags: [nginx]
+
 - name: Remove default nginx site (sites-enabled)
   ansible.builtin.file:
     path: /etc/nginx/sites-enabled/default
