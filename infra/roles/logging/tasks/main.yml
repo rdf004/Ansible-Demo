@@ -1,0 +1,18 @@
+---
+- name: Ensure log directory exists with correct permissions
+  ansible.builtin.file:
+    path: "{{ app_log_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0770"
+  tags: [logging]
+
+- name: Template logrotate configuration
+  ansible.builtin.template:
+    src: tradeops-logrotate.j2
+    dest: /etc/logrotate.d/tradeops
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [logging]

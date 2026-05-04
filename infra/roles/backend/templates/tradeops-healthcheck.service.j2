@@ -1,0 +1,12 @@
+[Unit]
+Description=TradeOps Health Check
+# OnFailure must point at a oneshot restart helper, NOT the
+# backend unit itself. systemd's OnFailure semantics ignore
+# units that are already active, so pointing back at
+# tradeops-backend.service silently no-ops on every failed
+# probe.
+OnFailure=tradeops-backend-restart.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/curl -sf {{ health_check_url }} -o /dev/null

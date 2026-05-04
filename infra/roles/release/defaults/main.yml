@@ -1,0 +1,7 @@
+---
+# By default the release role swaps `current` to the release that
+# was just built by the backend/frontend roles in this run. The
+# rollback playbook overrides target_release_path with the
+# previously-deployed release directory.
+target_release_path: >-
+  {{ app_releases_dir }}/{{ release_timestamp }}

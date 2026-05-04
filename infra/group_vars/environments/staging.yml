@@ -1,0 +1,9 @@
+---
+env_name: staging
+flask_env: staging
+flask_debug: "0"
+gunicorn_workers: 3
+gunicorn_log_level: info
+nginx_rate_limit: "20r/s"
+nginx_rate_limit_burst: 40
+ssh_hardening_enabled: true

@@ -1,0 +1,68 @@
+---
+app_name: tradeops
+app_user: tradeops
+app_group: tradeops
+app_base_dir: /opt/tradeops
+app_releases_dir: "{{ app_base_dir }}/releases"
+app_shared_dir: "{{ app_base_dir }}/shared"
+app_current_link: "{{ app_base_dir }}/current"
+app_log_dir: /var/log/tradeops
+app_backup_dir: /var/backups/tradeops
+app_data_dir: "{{ app_shared_dir }}/data"
+
+# Release management
+max_releases: 3
+
+# Backend
+backend_port: 5000
+backend_bind: "127.0.0.1:{{ backend_port }}"
+gunicorn_workers: 2
+gunicorn_timeout: 120
+gunicorn_graceful_timeout: 30
+gunicorn_max_requests: 1000
+gunicorn_max_requests_jitter: 50
+
+# Frontend
+# Vite 8 (used by frontend/package.json) requires Node 20.19+
+node_version: "20"
+
+# Pinned Python build tooling. `state: latest` made every run
+# pull whatever pip/setuptools/wheel happened to be on PyPI
+# that day, which is a no-go for "regulated financial services"
+# reproducibility. Bump these intentionally and re-test.
+python_pip_version: "24.0"
+python_setuptools_version: "70.0.0"
+python_wheel_version: "0.43.0"
+
+# Nginx
+nginx_worker_processes: auto
+nginx_rate_limit: "10r/s"
+nginx_rate_limit_burst: 20
+nginx_client_max_body_size: "1m"
+
+# Logging
+log_retention_days: 30
+
+# Backup
+backup_daily_keep: 7
+backup_weekly_keep: 4
+backup_cron_hour: 2
+backup_cron_minute: 0
+
+# Disk threshold
+disk_usage_threshold: 85
+
+# Firewall allowed ports
+firewall_allowed_ports:
+  - "22/tcp"
+  - "80/tcp"
+  - "443/tcp"
+
+# Health check
+health_check_url: "http://127.0.0.1:{{ backend_port }}/api/health"
+health_check_retries: 5
+health_check_delay: 3
+
+# Deploy metadata (overridable via --extra-vars)
+deploy_git_commit: "unknown"
+deployer: "ansible"

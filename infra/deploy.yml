@@ -1,0 +1,69 @@
+---
+- name: Deploy TradeOps Application
+  hosts: all
+  become: yes
+  vars_files:
+    - "group_vars/all/vars.yml"
+    - "group_vars/all/vault.yml"
+    - "group_vars/environments/{{ env_name | default('dev') }}.yml"
+
+  pre_tasks:
+    - name: Set release timestamp
+      ansible.builtin.set_fact:
+        release_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+      tags: [always]
+
+    # Resolve the git commit being deployed so the audit log
+    # records something meaningful when the operator forgets to
+    # pass -e deploy_git_commit=<sha>. delegate_to localhost +
+    # run_once: the commit is a property of the playbook
+    # invocation, not the target host.
+    - name: Resolve deploy_git_commit from local checkout
+      ansible.builtin.command:
+        cmd: git -C "{{ playbook_dir }}/.." rev-parse --short HEAD
+      register: git_head
+      delegate_to: localhost
+      run_once: true
+      become: false
+      changed_when: false
+      failed_when: false
+      tags: [always]
+
+    - name: Override deploy_git_commit when not user-specified
+      ansible.builtin.set_fact:
+        deploy_git_commit: "{{ git_head.stdout | trim }}"
+      when:
+        - deploy_git_commit == "unknown"
+        - git_head.rc | default(1) == 0
+        - git_head.stdout | default("") | trim != ""
+      tags: [always]
+
+    - name: Display deployment info
+      ansible.builtin.debug:
+        msg: |
+          Deploying TradeOps
+          Environment: {{ env_name | default('dev') }}
+          Release: {{ release_timestamp }}
+          Commit: {{ deploy_git_commit }}
+          Deployer: {{ deployer }}
+      tags: [always]
+
+  roles:
+    - { role: preflight, tags: [preflight] }
+    - { role: common, tags: [common] }
+    - { role: security, tags: [security] }
+    - { role: backend, tags: [backend, deploy] }
+    - { role: frontend, tags: [frontend, deploy] }
+    - { role: nginx, tags: [nginx] }
+    - { role: logging, tags: [logging] }
+    - { role: backup, tags: [backup] }
+    - { role: integrity, tags: [integrity, deploy] }
+    - { role: release, tags: [release, deploy] }
+    - { role: smoketest, tags: [smoketest, deploy] }
+
+  post_tasks:
+    - name: Deployment complete
+      ansible.builtin.debug:
+        msg: >-
+          TradeOps {{ release_timestamp }} deployed successfully
+      tags: [always]

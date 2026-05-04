@@ -1,0 +1,170 @@
+---
+- name: Create release directory
+  ansible.builtin.file:
+    path: "{{ app_releases_dir }}/{{ release_timestamp }}/backend"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [backend, deploy]
+
+- name: Copy backend source code
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../backend/"
+    dest: "{{ app_releases_dir }}/{{ release_timestamp }}/backend/"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+    directory_mode: "0750"
+  tags: [backend, deploy]
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: >-
+      python3 -m venv
+      {{ app_releases_dir }}/{{ release_timestamp }}/backend/venv
+    creates: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/backend/venv/bin/python
+  become_user: "{{ app_user }}"
+  tags: [backend, deploy]
+
+# Pin pip/setuptools/wheel to known versions so deployment is
+# reproducible across reruns. Bumping these is an intentional
+# change that goes through the normal review cycle in
+# group_vars/all/vars.yml, not a side effect of when you
+# happened to run the playbook.
+- name: Install pinned pip/setuptools/wheel in venv
+  ansible.builtin.pip:
+    name:
+      - "pip=={{ python_pip_version }}"
+      - "setuptools=={{ python_setuptools_version }}"
+      - "wheel=={{ python_wheel_version }}"
+    virtualenv: >-
+      {{ app_releases_dir }}/{{ release_timestamp }}/backend/venv
+  become_user: "{{ app_user }}"
+  tags: [backend, deploy]
+
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    requirements: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/backend/requirements.txt
+    virtualenv: >-
+      {{ app_releases_dir }}/{{ release_timestamp }}/backend/venv
+  become_user: "{{ app_user }}"
+  tags: [backend, deploy]
+
+- name: Ensure gunicorn is installed in venv
+  ansible.builtin.pip:
+    name: gunicorn
+    virtualenv: >-
+      {{ app_releases_dir }}/{{ release_timestamp }}/backend/venv
+  become_user: "{{ app_user }}"
+  tags: [backend, deploy]
+
+- name: Pre-create backend log files with correct ownership
+  ansible.builtin.file:
+    path: "{{ app_log_dir }}/{{ item }}"
+    state: touch
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  loop:
+    - backend.log
+    - backend-error.log
+    - gunicorn-access.log
+    - gunicorn-error.log
+  tags: [backend, deploy]
+
+- name: Template wsgi.py
+  ansible.builtin.template:
+    src: wsgi.py.j2
+    dest: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/backend/wsgi.py
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  tags: [backend, deploy]
+
+- name: Template gunicorn config
+  ansible.builtin.template:
+    src: gunicorn.conf.py.j2
+    dest: >-
+      {{ app_releases_dir }}/{{ release_timestamp
+      }}/backend/gunicorn.conf.py
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  tags: [backend, deploy]
+
+# Don't notify the restart handler here. On first deploy the
+# `current` symlink doesn't exist yet so gunicorn would fail
+# with status=203/EXEC. The `release` role unconditionally
+# restarts the backend AFTER swapping the symlink, which is
+# also what we want on subsequent deploys to pick up new code.
+- name: Template systemd service
+  ansible.builtin.template:
+    src: tradeops-backend.service.j2
+    dest: /etc/systemd/system/tradeops-backend.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+  tags: [backend, deploy]
+
+- name: Template restart-helper service for OnFailure
+  ansible.builtin.template:
+    src: tradeops-backend-restart.service.j2
+    dest: /etc/systemd/system/tradeops-backend-restart.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [backend, deploy]
+
+- name: Template health check service
+  ansible.builtin.template:
+    src: tradeops-healthcheck.service.j2
+    dest: /etc/systemd/system/tradeops-healthcheck.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [backend, deploy]
+
+- name: Template health check timer
+  ansible.builtin.template:
+    src: tradeops-healthcheck.timer.j2
+    dest: /etc/systemd/system/tradeops-healthcheck.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [backend, deploy]
+
+# Symlink swap and release retention now live in the `release`
+# role so a `--tags frontend` deploy still publishes the new
+# release. See infra/roles/release/. The backend service is
+# enabled here but actually started by the release role AFTER
+# the symlink points at the new build (otherwise systemd
+# blocks on WorkingDirectory={{ app_current_link }}/backend not
+# existing on first deploy).
+
+- name: Enable backend service
+  ansible.builtin.systemd:
+    name: tradeops-backend
+    enabled: yes
+    daemon_reload: yes
+  tags: [backend, deploy]
+
+- name: Enable and start health check timer
+  ansible.builtin.systemd:
+    name: tradeops-healthcheck.timer
+    state: started
+    enabled: yes
+  tags: [backend, deploy]

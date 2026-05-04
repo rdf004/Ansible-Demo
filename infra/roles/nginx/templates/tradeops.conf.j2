@@ -1,0 +1,73 @@
+# Ansible managed — TradeOps Nginx Configuration
+
+# Rate limiting zone
+limit_req_zone $binary_remote_addr zone=tradeops_limit:10m rate={{ nginx_rate_limit }};
+
+upstream backend {
+    server {{ backend_bind }};
+}
+
+server {
+    listen 80 default_server;
+    server_name _;
+
+    # Request size limit
+    client_max_body_size {{ nginx_client_max_body_size }};
+
+    # Security headers (see security_headers.conf for rationale)
+    include /etc/nginx/snippets/tradeops_security_headers.conf;
+
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_min_length 256;
+    gzip_types
+        text/plain
+        text/css
+        text/javascript
+        application/javascript
+        application/json
+        application/xml
+        image/svg+xml;
+
+    # Access and error logs
+    access_log /var/log/tradeops/nginx-access.log;
+    error_log /var/log/tradeops/nginx-error.log;
+
+    # API reverse proxy
+    location /api/ {
+        limit_req zone=tradeops_limit burst={{ nginx_rate_limit_burst }} nodelay;
+
+        proxy_pass http://backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 10s;
+    }
+
+    # Frontend static files
+    location / {
+        root {{ app_current_link }}/frontend/dist;
+        index index.html;
+        try_files $uri $uri/ /index.html;
+
+        # Cache static assets. Must re-include security headers
+        # because any add_header in this nested block drops the
+        # parent's add_header set.
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 30d;
+            include /etc/nginx/snippets/tradeops_security_headers.conf;
+            add_header Cache-Control "public, immutable" always;
+        }
+    }
+
+    # Deny access to hidden files
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+}

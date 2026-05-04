@@ -1,0 +1,37 @@
+# Ansible managed — TradeOps Backend Service
+[Unit]
+Description=TradeOps Backend (Gunicorn)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=notify
+User={{ app_user }}
+Group={{ app_group }}
+WorkingDirectory={{ app_current_link }}/backend
+ExecStart={{ app_current_link }}/backend/venv/bin/gunicorn \
+    --config {{ app_current_link }}/backend/gunicorn.conf.py \
+    wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Health check is handled by tradeops-healthcheck.timer + Restart=on-failure.
+# WatchdogSec is intentionally NOT set: stock gunicorn implements sd_notify
+# READY=1 / STOPPING=1 but does not emit periodic WATCHDOG=1 pings, so
+# enabling it would trigger spurious aborts every WatchdogSec seconds.
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ app_log_dir }} {{ app_data_dir }}
+
+[Install]
+WantedBy=multi-user.target

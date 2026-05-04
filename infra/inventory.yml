@@ -4,5 +4,13 @@ all:
       ansible_host: localhost
       ansible_port: 2222
       ansible_user: root
-      ansible_password: devin
+      ansible_password: "{{ vault_ansible_password }}"
       ansible_connection: ssh
+  children:
+    dev:
+      hosts:
+        target:
+    staging:
+      hosts: {}
+    prod:
+      hosts: {}

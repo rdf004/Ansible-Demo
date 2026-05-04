@@ -1,0 +1,90 @@
+---
+# Atomic symlink swap + retention. Used by deploy.yml after the
+# backend/frontend roles have populated a fresh release dir, and
+# by rollback.yml with target_release_path overridden to the
+# previous release.
+#
+# Why a role: keeping the swap out of the backend role means
+# `ansible-playbook deploy.yml --tags frontend` actually
+# republishes the symlink (otherwise a frontend-only deploy
+# builds a new release dir but `current` never moves).
+
+- name: Verify target release directory exists
+  ansible.builtin.stat:
+    path: "{{ target_release_path }}"
+  register: target_release_stat
+  tags: [release, deploy]
+
+- name: Fail if target release does not exist
+  ansible.builtin.fail:
+    msg: >-
+      Release directory {{ target_release_path }} does not exist;
+      refusing to swap symlink.
+  when: >-
+    not target_release_stat.stat.exists
+    or not target_release_stat.stat.isdir
+  tags: [release, deploy]
+
+# `ansible.builtin.file: state=link force=yes` does
+# unlink+symlink (two syscalls) which leaves a window where
+# /opt/tradeops/current is missing and nginx 502s. Use
+# `ln -snf <new> current.tmp && mv -T current.tmp current`
+# instead — `mv -T` does a single atomic rename(2) which the
+# kernel guarantees readers always see one valid link.
+- name: Atomic symlink swap to target release
+  ansible.builtin.shell: |
+    set -euo pipefail
+    TMP="{{ app_current_link }}.tmp.$$"
+    ln -snf "{{ target_release_path }}" "$TMP"
+    chown -h {{ app_user }}:{{ app_group }} "$TMP"
+    mv -T "$TMP" "{{ app_current_link }}"
+  args:
+    executable: /bin/bash
+  changed_when: true
+  tags: [release, deploy]
+
+# After the swap the backend systemd unit's WorkingDirectory and
+# ExecStart resolve through the new release. Without a restart
+# gunicorn keeps serving the previous release's bytecode.
+- name: Restart backend service to pick up new release
+  ansible.builtin.systemd:
+    name: tradeops-backend
+    state: restarted
+    daemon_reload: yes
+  tags: [release, deploy]
+
+# nginx serves frontend/dist via the symlink so it doesn't need
+# a reload for content changes, but if the role just templated a
+# new tradeops.conf the handler will fire on flush.
+- name: Reload nginx after release swap
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded
+  failed_when: false
+  changed_when: false
+  tags: [release, deploy]
+
+# Retention. Lists release dirs by mtime descending, drops the
+# one `current` points at, and removes everything past
+# {{ max_releases }}.
+- name: Clean up old releases (keep {{ max_releases }})
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd "{{ app_releases_dir }}"
+    CURRENT=$(readlink -f "{{ app_current_link }}")
+    find . -mindepth 1 -maxdepth 1 -type d \
+      -printf '%T@ %p\n' \
+      | sort -rn \
+      | awk '{print $2}' \
+      | while read -r entry; do
+          FULL="{{ app_releases_dir }}/${entry#./}"
+          if [ "$FULL" != "$CURRENT" ]; then
+            echo "$FULL"
+          fi
+        done \
+      | tail -n +{{ max_releases }} \
+      | xargs -r rm -rf
+  args:
+    executable: /bin/bash
+  changed_when: false
+  tags: [release, deploy]

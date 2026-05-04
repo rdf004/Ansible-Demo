@@ -1,0 +1,84 @@
+---
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+  tags: [nginx]
+
+- name: Grant nginx (www-data) group access to app files
+  ansible.builtin.user:
+    name: www-data
+    groups: "{{ app_group }}"
+    append: yes
+  notify: Restart nginx
+  tags: [nginx]
+
+- name: Ensure nginx snippets directory exists
+  ansible.builtin.file:
+    path: /etc/nginx/snippets
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [nginx]
+
+- name: Template shared security-headers snippet
+  ansible.builtin.template:
+    src: security_headers.conf.j2
+    dest: /etc/nginx/snippets/tradeops_security_headers.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Test nginx config
+    - Reload nginx
+  tags: [nginx]
+
+- name: Remove default nginx site (sites-enabled)
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+  tags: [nginx]
+
+- name: Remove default nginx site (sites-available)
+  ansible.builtin.file:
+    path: /etc/nginx/sites-available/default
+    state: absent
+  tags: [nginx]
+
+- name: Template tradeops nginx site
+  ansible.builtin.template:
+    src: tradeops.conf.j2
+    dest: /etc/nginx/sites-available/tradeops
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Test nginx config
+    - Reload nginx
+  tags: [nginx]
+
+- name: Enable tradeops nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/tradeops
+    dest: /etc/nginx/sites-enabled/tradeops
+    state: link
+    force: yes
+  notify:
+    - Test nginx config
+    - Reload nginx
+  tags: [nginx]
+
+- name: Ensure nginx is enabled and started
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+    enabled: yes
+  tags: [nginx]
+
+- name: Flush nginx handlers to reload config
+  ansible.builtin.meta: flush_handlers
+  tags: [nginx]

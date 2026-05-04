@@ -1,0 +1,6 @@
+{# Ansible managed — NodeSource apt source. The deb line must
+   live on a single line; this template lets the source role
+   stay within the project's 80-col limit. #}
+{% set keyring = '/etc/apt/keyrings/nodesource.asc' -%}
+{% set base = 'https://deb.nodesource.com' -%}
+deb [arch=amd64 signed-by={{ keyring }}] {{ base }}/node_{{ node_version }}.x nodistro main

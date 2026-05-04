@@ -1,0 +1,9 @@
+---
+env_name: prod
+flask_env: production
+flask_debug: "0"
+gunicorn_workers: 4
+gunicorn_log_level: warning
+nginx_rate_limit: "10r/s"
+nginx_rate_limit_burst: 20
+ssh_hardening_enabled: true

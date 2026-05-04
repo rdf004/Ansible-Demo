@@ -1,0 +1,99 @@
+---
+- name: Rollback TradeOps to Previous Release
+  hosts: all
+  become: yes
+  vars_files:
+    - "group_vars/all/vars.yml"
+    - "group_vars/all/vault.yml"
+    - "group_vars/environments/{{ env_name | default('dev') }}.yml"
+
+  tasks:
+    - name: Get current release
+      ansible.builtin.stat:
+        path: "{{ app_current_link }}"
+      register: current_link
+
+    - name: Resolve current symlink target
+      ansible.builtin.command: readlink -f {{ app_current_link }}
+      register: current_target
+      changed_when: false
+
+    - name: List available releases
+      ansible.builtin.find:
+        paths: "{{ app_releases_dir }}"
+        file_type: directory
+      register: available_releases
+
+    - name: Sort releases by mtime (newest first)
+      ansible.builtin.set_fact:
+        releases_by_mtime: >-
+          {{ available_releases.files
+             | sort(attribute='mtime', reverse=true)
+             | map(attribute='path')
+             | list }}
+
+    # Pick the newest release that isn't the one `current` points
+    # at. mtime-based instead of timestamp-suffix-based so
+    # rollback-then-deploy cycles still pick the most recent
+    # *previous* release, not whatever sorts last alphabetically.
+    - name: Identify previous release
+      ansible.builtin.set_fact:
+        previous_release: >-
+          {{ (releases_by_mtime
+              | reject('equalto', current_target.stdout)
+              | list)[0] }}
+      when: releases_by_mtime | length > 1
+
+    - name: Fail if no previous release available
+      ansible.builtin.fail:
+        msg: >-
+          No previous release available for rollback. Only
+          {{ releases_by_mtime | length }} release(s) found.
+      when: releases_by_mtime | length <= 1
+
+    - name: Display rollback info
+      ansible.builtin.debug:
+        msg: |
+          Rolling back TradeOps
+          Current: {{ current_target.stdout }}
+          Target:  {{ previous_release }}
+
+    # Atomic swap + service restarts handled by the release role
+    # so deploy + rollback share one code path. Override
+    # target_release_path to point at the previous release.
+    - name: Swap symlink + restart services via release role
+      ansible.builtin.include_role:
+        name: release
+      vars:
+        target_release_path: "{{ previous_release }}"
+
+    - name: Append rollback to audit log
+      ansible.builtin.lineinfile:
+        path: "{{ app_base_dir }}/deploy.log"
+        line: >-
+          {{ ansible_date_time.iso8601 }} | commit=ROLLBACK |
+          deployer={{ deployer | default('ansible') }} |
+          release={{ previous_release | basename }} |
+          status=ROLLBACK from
+          {{ current_target.stdout | basename }}
+        create: yes
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: "0640"
+
+    - name: "Smoke test: health endpoint after rollback"
+      ansible.builtin.uri:
+        url: "{{ health_check_url }}"
+        method: GET
+        return_content: yes
+        status_code: 200
+      register: health_result
+      retries: 5
+      delay: 3
+      until: health_result.status == 200
+
+    - name: Rollback complete
+      ansible.builtin.debug:
+        msg: >-
+          Rollback to {{ previous_release | basename }}
+          completed successfully
