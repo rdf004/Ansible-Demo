@@ -1,0 +1,76 @@
+---
+# ── Frontend: React + Vite build ────────────────
+
+- name: Install NodeSource GPG key
+  ansible.builtin.apt_key:
+    url: >-
+      https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    state: present
+  tags: [frontend]
+
+- name: Add NodeSource repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb https://deb.nodesource.com/node_{{
+        node_major_version }}.x nodistro main
+    state: present
+    filename: nodesource
+  tags: [frontend]
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: true
+  tags: [frontend]
+
+- name: Synchronize frontend source to release
+  ansible.posix.synchronize:
+    src: "{{ src_frontend_dir }}/"
+    dest: "{{ release_dir }}/frontend/"
+    delete: true
+    rsync_opts:
+      - "--exclude=node_modules"
+      - "--exclude=dist"
+  tags: [frontend]
+
+- name: Install npm dependencies
+  ansible.builtin.command:
+    cmd: npm ci --production=false
+    chdir: "{{ release_dir }}/frontend"
+  environment:
+    HOME: "/tmp"
+  changed_when: true
+  tags: [frontend]
+
+- name: Build frontend for production
+  ansible.builtin.command:
+    cmd: npm run build
+    chdir: "{{ release_dir }}/frontend"
+  environment:
+    HOME: "/tmp"
+    NODE_ENV: production
+  changed_when: true
+  tags: [frontend]
+
+- name: Verify dist directory exists
+  ansible.builtin.stat:
+    path: "{{ release_dir }}/frontend/dist"
+  register: frontend_dist_stat
+  tags: [frontend]
+
+- name: Fail if frontend build missing
+  ansible.builtin.fail:
+    msg: >-
+      Frontend build failed — dist/ not found
+  when: not frontend_dist_stat.stat.exists
+  tags: [frontend]
+
+- name: Set ownership on frontend release dir
+  ansible.builtin.file:
+    path: "{{ release_dir }}/frontend"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    recurse: true
+    mode: "0750"
+  tags: [frontend]

@@ -1,0 +1,12 @@
+---
+all:
+  hosts:
+    staging-server:
+      ansible_host: staging.tradeops.internal
+      ansible_port: 22
+      ansible_user: deploy
+      ansible_connection: ssh
+  vars:
+    env_name: staging
+    ansible_become: true
+    ansible_become_method: sudo

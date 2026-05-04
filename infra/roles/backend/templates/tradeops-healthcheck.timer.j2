@@ -1,0 +1,11 @@
+# Managed by Ansible — do not edit manually
+[Unit]
+Description=TradeOps Health Check Timer
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec={{ health_check_interval_sec }}
+AccuracySec=5
+
+[Install]
+WantedBy=timers.target

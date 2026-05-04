@@ -1,0 +1,54 @@
+---
+# ── Pre-flight validation ───────────────────────
+- name: Verify SSH connectivity
+  ansible.builtin.ping:
+  tags: [preflight]
+
+- name: Gather disk usage on root partition
+  ansible.builtin.shell: |
+    set -o pipefail
+    df --output=pcent / | tail -1 | tr -d ' %'
+  args:
+    executable: /bin/bash
+  register: preflight_disk_pct
+  changed_when: false
+  tags: [preflight]
+
+- name: Fail when disk above threshold
+  ansible.builtin.fail:
+    msg: >-
+      Disk usage is {{ preflight_disk_pct.stdout }}%
+      (threshold {{ disk_usage_threshold }}%)
+  when: >-
+    preflight_disk_pct.stdout | int
+    > disk_usage_threshold | int
+  tags: [preflight]
+
+- name: Check port 80 is not held by others
+  ansible.builtin.wait_for:
+    port: 80
+    state: stopped
+    timeout: 5
+  ignore_errors: true
+  register: preflight_port_80
+  tags: [preflight]
+
+- name: Check port 443 is available
+  ansible.builtin.wait_for:
+    port: 443
+    state: stopped
+    timeout: 5
+  ignore_errors: true
+  register: preflight_port_443
+  tags: [preflight]
+
+- name: Report port availability
+  ansible.builtin.debug:
+    msg: >-
+      Port 80 {{ 'available'
+        if preflight_port_80 is succeeded
+        else 'in use (nginx may own it)' }},
+      Port 443 {{ 'available'
+        if preflight_port_443 is succeeded
+        else 'in use' }}
+  tags: [preflight]

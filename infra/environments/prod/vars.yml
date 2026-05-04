@@ -1,0 +1,13 @@
+---
+env_name: prod
+
+ssh_hardening_enabled: true
+firewall_enabled: true
+
+gunicorn_workers: 4
+gunicorn_timeout: 60
+nginx_rate_limit_zone: "10r/s"
+nginx_rate_limit_burst: 20
+
+# Stricter disk threshold in production
+disk_usage_threshold: 85

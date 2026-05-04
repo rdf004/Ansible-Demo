@@ -1,0 +1,105 @@
+---
+# ── Backend: Flask + Gunicorn ───────────────────
+
+- name: Synchronize backend source to release
+  ansible.posix.synchronize:
+    src: "{{ src_backend_dir }}/"
+    dest: "{{ release_dir }}/backend/"
+    delete: true
+    rsync_opts:
+      - "--exclude=__pycache__"
+      - "--exclude=*.pyc"
+      - "--exclude=node_modules"
+  tags: [backend]
+
+- name: Create Python virtual environment
+  ansible.builtin.command:
+    cmd: >-
+      python3 -m venv
+      {{ release_dir }}/backend/venv
+    creates: >-
+      {{ release_dir }}/backend/venv/bin/python
+  tags: [backend]
+
+- name: Install Python dependencies
+  ansible.builtin.pip:
+    requirements: >-
+      {{ release_dir }}/backend/requirements.txt
+    virtualenv: >-
+      {{ release_dir }}/backend/venv
+    state: present
+  tags: [backend]
+
+- name: Set ownership on backend release dir
+  ansible.builtin.file:
+    path: "{{ release_dir }}/backend"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    recurse: true
+    mode: "0750"
+  tags: [backend]
+
+- name: Template Gunicorn configuration
+  ansible.builtin.template:
+    src: gunicorn.conf.py.j2
+    dest: "{{ shared_dir }}/gunicorn.conf.py"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  notify: Restart backend
+  tags: [backend]
+
+- name: Template backend systemd service
+  ansible.builtin.template:
+    src: tradeops-backend.service.j2
+    dest: >-
+      /etc/systemd/system/tradeops-backend.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart backend
+  tags: [backend]
+
+- name: Template health check script
+  ansible.builtin.template:
+    src: healthcheck.sh.j2
+    dest: "{{ shared_dir }}/healthcheck.sh"
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [backend]
+
+- name: Template health check service unit
+  ansible.builtin.template:
+    src: tradeops-healthcheck.service.j2
+    dest: >-
+      /etc/systemd/system/tradeops-healthcheck.service
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [backend]
+
+- name: Template health check timer unit
+  ansible.builtin.template:
+    src: tradeops-healthcheck.timer.j2
+    dest: >-
+      /etc/systemd/system/tradeops-healthcheck.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart healthcheck timer
+  tags: [backend]
+
+- name: Enable backend service
+  ansible.builtin.systemd:
+    name: tradeops-backend
+    enabled: true
+    daemon_reload: true
+  tags: [backend]
+
+- name: Enable health check timer
+  ansible.builtin.systemd:
+    name: tradeops-healthcheck.timer
+    enabled: true
+    daemon_reload: true
+  tags: [backend]

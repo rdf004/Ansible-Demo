@@ -1,0 +1,65 @@
+---
+# ── Application ─────────────────────────────────
+app_name: tradeops
+app_user: tradeops
+app_group: tradeops
+
+# ── Directory layout ────────────────────────────
+app_base_dir: /opt/tradeops
+releases_dir: "{{ app_base_dir }}/releases"
+shared_dir: "{{ app_base_dir }}/shared"
+current_link: "{{ app_base_dir }}/current"
+log_dir: /var/log/tradeops
+backup_dir: "{{ app_base_dir }}/backups"
+deploy_log: "{{ app_base_dir }}/deploy.log"
+
+# ── Release management ──────────────────────────
+keep_releases: 3
+
+# ── Backend (Gunicorn) ──────────────────────────
+backend_port: 8000
+gunicorn_workers: 2
+gunicorn_timeout: 120
+gunicorn_graceful_timeout: 30
+gunicorn_bind: "127.0.0.1:{{ backend_port }}"
+
+# ── Frontend (Node.js) ─────────────────────────
+node_major_version: "20"
+
+# ── Nginx ───────────────────────────────────────
+nginx_server_name: "_"
+nginx_client_max_body_size: "10m"
+nginx_rate_limit_zone: "10r/s"
+nginx_rate_limit_burst: 20
+
+# ── Firewall ────────────────────────────────────
+firewall_enabled: true
+allowed_ports:
+  - "22"
+  - "80"
+  - "443"
+
+# ── SSH hardening ───────────────────────────────
+ssh_hardening_enabled: true
+ssh_permit_root_login: "no"
+ssh_password_auth: "no"
+
+# ── Backup ──────────────────────────────────────
+backup_retention_daily: 7
+backup_retention_weekly: 4
+backup_cron_hour: "2"
+backup_cron_minute: "0"
+
+# ── Logging ─────────────────────────────────────
+log_retention_days: 30
+
+# ── Disk check ──────────────────────────────────
+disk_usage_threshold: 85
+
+# ── Health check ────────────────────────────────
+health_check_url: "http://127.0.0.1:{{ backend_port }}"
+health_check_interval_sec: 60
+
+# ── Source paths (on control machine) ───────────
+src_backend_dir: "{{ playbook_dir }}/../backend"
+src_frontend_dir: "{{ playbook_dir }}/../frontend"

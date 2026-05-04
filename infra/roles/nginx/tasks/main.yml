@@ -1,0 +1,49 @@
+---
+# ── Nginx reverse proxy ─────────────────────────
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+  tags: [nginx]
+
+- name: Remove default nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+  tags: [nginx]
+
+- name: Template TradeOps nginx config
+  ansible.builtin.template:
+    src: tradeops.conf.j2
+    dest: >-
+      /etc/nginx/sites-available/tradeops.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload nginx
+  tags: [nginx]
+
+- name: Enable TradeOps nginx site
+  ansible.builtin.file:
+    src: >-
+      /etc/nginx/sites-available/tradeops.conf
+    dest: >-
+      /etc/nginx/sites-enabled/tradeops.conf
+    state: link
+  notify: Reload nginx
+  tags: [nginx]
+
+- name: Validate nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+  tags: [nginx]
+
+- name: Ensure nginx is running and enabled
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+    enabled: true
+  tags: [nginx]

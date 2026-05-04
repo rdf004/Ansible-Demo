@@ -1,0 +1,30 @@
+# Managed by Ansible — do not edit manually
+import multiprocessing  # noqa: F401
+
+bind = "{{ gunicorn_bind }}"
+workers = {{ gunicorn_workers }}
+timeout = {{ gunicorn_timeout }}
+graceful_timeout = {{ gunicorn_graceful_timeout }}
+worker_class = "sync"
+preload_app = True
+
+# ── Logging ─────────────────────────────────────
+accesslog = "{{ log_dir }}/backend-access.log"
+errorlog = "{{ log_dir }}/backend-error.log"
+loglevel = "info"
+
+# Structured JSON access log
+access_log_format = (
+    '{"ts":"%(t)s"'
+    ',"ip":"%(h)s"'
+    ',"method":"%(m)s"'
+    ',"uri":"%(U)s%(q)s"'
+    ',"proto":"%(H)s"'
+    ',"status":"%(s)s"'
+    ',"len":"%(B)s"'
+    ',"us":"%(D)s"'
+    ',"ua":"%(a)s"}'
+)
+
+# ── Process naming ──────────────────────────────
+proc_name = "{{ app_name }}"

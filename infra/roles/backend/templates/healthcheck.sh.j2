@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Managed by Ansible — do not edit manually
+# Checks backend health; restarts if unhealthy.
+set -euo pipefail
+
+URL="{{ health_check_url }}/api/health"
+TIMEOUT=5
+SERVICE="tradeops-backend"
+
+status=$(curl -sf -o /dev/null \
+  -w "%{http_code}" \
+  --max-time "$TIMEOUT" \
+  "$URL" 2>/dev/null || echo "000")
+
+if [ "$status" != "200" ]; then
+  logger -t "$SERVICE-healthcheck" \
+    "Health check FAILED (HTTP $status)"
+  systemctl restart "$SERVICE"
+  logger -t "$SERVICE-healthcheck" \
+    "Service restarted"
+  exit 1
+fi
+exit 0

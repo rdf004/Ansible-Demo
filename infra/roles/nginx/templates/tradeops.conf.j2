@@ -1,0 +1,84 @@
+# Managed by Ansible — do not edit manually
+
+# Rate-limiting zone
+limit_req_zone $binary_remote_addr
+    zone=tradeops:10m
+    rate={{ nginx_rate_limit_zone }};
+
+upstream backend {
+    server {{ gunicorn_bind }};
+}
+
+server {
+    listen 80;
+    server_name {{ nginx_server_name }};
+
+    # ── Request limits ──────────────────────────
+    client_max_body_size {{ nginx_client_max_body_size }};
+
+    # ── Security headers ────────────────────────
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options
+        "nosniff" always;
+    add_header Referrer-Policy
+        "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security
+        "max-age=31536000; includeSubDomains"
+        always;
+{%- set csp = "default-src 'self'; " +
+    "script-src 'self'; " +
+    "style-src 'self' 'unsafe-inline'" -%}
+    add_header Content-Security-Policy
+        "{{ csp }}" always;
+
+    # ── Logging ─────────────────────────────────
+    access_log {{ log_dir }}/nginx-access.log;
+    error_log  {{ log_dir }}/nginx-error.log;
+
+    # ── Frontend static files ───────────────────
+    root {{ current_link }}/frontend/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+
+        # Cache static assets
+        location ~* \.(js|css|png|jpg|ico|svg|woff2?)$ {
+            expires 7d;
+            add_header Cache-Control
+                "public, immutable";
+            access_log off;
+        }
+    }
+
+    # ── API reverse proxy ───────────────────────
+    location /api/ {
+        limit_req zone=tradeops
+            burst={{ nginx_rate_limit_burst }}
+            nodelay;
+
+        proxy_pass http://backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP
+            $remote_addr;
+        proxy_set_header X-Forwarded-For
+            $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto
+            $scheme;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+    }
+
+    # ── Gzip compression ───────────────────────
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_min_length 256;
+    gzip_types
+        text/plain
+        text/css
+        text/javascript
+        application/javascript
+        application/json
+        image/svg+xml;
+}
