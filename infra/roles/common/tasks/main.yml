@@ -1,0 +1,116 @@
+---
+# -------------------------------------------------
+# common — base OS, app user, directory layout
+# -------------------------------------------------
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  tags: [common]
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ common_packages }}"
+    state: present
+  tags: [common]
+
+# ---------- Node.js via NodeSource ----------
+
+- name: Check if Node.js is installed
+  ansible.builtin.command:
+    cmd: node --version
+  register: node_check
+  changed_when: false
+  failed_when: false
+  tags: [common, frontend]
+
+- name: Install NodeSource GPG key
+  ansible.builtin.apt_key:
+    url: >-
+      https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+    state: present
+  when: node_check.rc != 0
+  tags: [common, frontend]
+
+- name: Add NodeSource repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb https://deb.nodesource.com/node_{{
+        node_major_version }}.x nodistro main
+    state: present
+    filename: nodesource
+  when: node_check.rc != 0
+  tags: [common, frontend]
+
+- name: Install Node.js
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+    update_cache: true
+  when: node_check.rc != 0
+  tags: [common, frontend]
+
+# ---------- application user ----------
+
+- name: Create application group
+  ansible.builtin.group:
+    name: "{{ app_group }}"
+    system: true
+    state: present
+  tags: [common]
+
+- name: Create application user (no login shell)
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    group: "{{ app_group }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ app_base_dir }}"
+    create_home: false
+    state: present
+  tags: [common]
+
+# ---------- directory layout ----------
+
+- name: Create application directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  loop:
+    - "{{ app_base_dir }}"
+    - "{{ releases_dir }}"
+    - "{{ shared_dir }}"
+    - "{{ shared_dir }}/env"
+    - "{{ backup_dir }}"
+  tags: [common]
+
+- name: Create log directory
+  ansible.builtin.file:
+    path: "{{ log_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [common]
+
+- name: Create PID directory
+  ansible.builtin.file:
+    path: /var/run/tradeops
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0755"
+  tags: [common]
+
+- name: Ensure PID dir survives reboot
+  ansible.builtin.copy:
+    dest: /etc/tmpfiles.d/tradeops.conf
+    content: |
+      d /var/run/tradeops 0755 {{ app_user }} {{
+        app_group }} -
+    mode: "0644"
+  tags: [common]

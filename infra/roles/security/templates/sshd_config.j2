@@ -1,0 +1,28 @@
+# {{ ansible_managed }}
+# TradeOps — hardened SSH configuration
+
+Port {{ sshd_port }}
+Protocol 2
+AddressFamily any
+
+# Authentication
+PermitRootLogin {{ sshd_permit_root_login }}
+PasswordAuthentication {{ sshd_password_auth }}
+PubkeyAuthentication yes
+ChallengeResponseAuthentication no
+UsePAM yes
+
+# Security
+PermitEmptyPasswords no
+X11Forwarding no
+MaxAuthTries 3
+LoginGraceTime 60
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+# Logging
+SyslogFacility AUTH
+LogLevel VERBOSE
+
+# Subsystem
+Subsystem sftp /usr/lib/openssh/sftp-server

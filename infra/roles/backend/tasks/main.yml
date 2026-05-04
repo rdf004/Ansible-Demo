@@ -1,0 +1,71 @@
+---
+# -------------------------------------------------
+# backend — Gunicorn config, systemd service,
+#            health-check timer
+# -------------------------------------------------
+
+- name: Deploy Gunicorn configuration
+  ansible.builtin.template:
+    src: gunicorn.conf.py.j2
+    dest: "{{ shared_dir }}/gunicorn.conf.py"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  notify: Restart tradeops backend
+  tags: [backend]
+
+- name: Deploy environment file
+  ansible.builtin.template:
+    src: tradeops.env.j2
+    dest: "{{ shared_dir }}/env/tradeops.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0600"
+  notify: Restart tradeops backend
+  tags: [backend]
+
+- name: Deploy health-check script
+  ansible.builtin.template:
+    src: health-check.sh.j2
+    dest: "{{ shared_dir }}/health-check.sh"
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [backend]
+
+- name: Deploy backend systemd unit
+  ansible.builtin.template:
+    src: tradeops-backend.service.j2
+    dest: >-
+      /etc/systemd/system/tradeops-backend.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart tradeops backend
+  tags: [backend]
+
+- name: Deploy health-check service unit
+  ansible.builtin.template:
+    src: tradeops-health.service.j2
+    dest: >-
+      /etc/systemd/system/tradeops-health.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [backend]
+
+- name: Deploy health-check timer unit
+  ansible.builtin.template:
+    src: tradeops-health.timer.j2
+    dest: >-
+      /etc/systemd/system/tradeops-health.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Enable health timer
+  tags: [backend]

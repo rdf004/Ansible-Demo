@@ -1,0 +1,102 @@
+---
+# -------------------------------------------------
+# security — SSH hardening, firewall, file integrity
+# -------------------------------------------------
+
+# ---------- SSH hardening ----------
+
+- name: Deploy hardened sshd_config
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+    validate: "/usr/sbin/sshd -t -f %s"
+  notify: Restart sshd
+  tags: [security, ssh]
+
+# ---------- firewall (UFW) ----------
+
+- name: Set UFW default deny incoming
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+  tags: [security, firewall]
+
+- name: Set UFW default allow outgoing
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+  tags: [security, firewall]
+
+- name: Allow required ports through UFW
+  community.general.ufw:
+    rule: allow
+    port: "{{ item | string }}"
+    proto: tcp
+  loop: "{{ allowed_ports }}"
+  tags: [security, firewall]
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+  tags: [security, firewall]
+
+# ---------- directory permissions ----------
+
+- name: Lock down application base directory
+  ansible.builtin.file:
+    path: "{{ app_base_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [security]
+
+- name: Find world-readable files
+  ansible.builtin.command:
+    cmd: >-
+      find {{ app_base_dir }}
+      -type f -perm /o+r
+  register: world_readable
+  changed_when: false
+  failed_when: false
+  tags: [security]
+
+- name: Remove world-readable permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "o-rwx"
+  loop: >-
+    {{ world_readable.stdout_lines
+       | default([]) }}
+  when: world_readable.stdout_lines | length > 0
+  tags: [security]
+
+# ---------- file integrity ----------
+
+- name: Install integrity check script
+  ansible.builtin.copy:
+    dest: >-
+      {{ shared_dir }}/integrity-check.sh
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+    content: |
+      #!/usr/bin/env bash
+      # Generate SHA-256 manifest
+      set -euo pipefail
+      RELEASE="$1"
+      MANIFEST="${RELEASE}/MANIFEST.sha256"
+      cd "${RELEASE}"
+      find backend frontend \
+        -type f \
+        -not -path '*/node_modules/*' \
+        -not -path '*/__pycache__/*' \
+        -not -path '*/venv/*' \
+        -exec sha256sum {} + \
+        | sort -k2 > "${MANIFEST}"
+      chmod 0640 "${MANIFEST}"
+      echo "Manifest: ${MANIFEST}"
+  tags: [security, integrity]

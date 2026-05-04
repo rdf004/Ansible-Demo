@@ -1,0 +1,147 @@
+---
+# =========================================================
+# TradeOps — Production Deployment Playbook
+# =========================================================
+# Usage:
+#   ansible-playbook deploy.yml \
+#     -e deploy_env=dev
+#
+# Tags:
+#   --tags common      Base OS setup
+#   --tags security    SSH / firewall / integrity
+#   --tags backend     Gunicorn & systemd
+#   --tags frontend    Node build
+#   --tags nginx       Reverse proxy
+#   --tags observability  Logging & disk
+#   --tags backup      Backup & cron
+#   --tags deploy      Blue-green release
+#   --tags smoke       Post-deploy verification
+#   --tags audit       Deployment audit log
+# =========================================================
+
+- name: Deploy TradeOps
+  hosts: all
+  become: true
+
+  vars_files:
+    - "environments/{{ deploy_env | default('dev') }}.yml"
+    - "vault/{{ deploy_env | default('dev') }}.yml"
+
+  # ---------- pre-flight validation ----------
+  pre_tasks:
+
+    - name: "Preflight: connectivity check"
+      ansible.builtin.ping:
+      tags: [preflight, always]
+
+    - name: "Preflight: gather facts"
+      ansible.builtin.setup:
+      tags: [preflight, always]
+
+    - name: "Preflight: check disk usage"
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          df --output=pcent / \
+            | tail -1 \
+            | tr -d ' %'
+        executable: /bin/bash
+      register: preflight_disk
+      changed_when: false
+      tags: [preflight]
+
+    - name: "Preflight: fail if disk > 85%"
+      ansible.builtin.fail:
+        msg: >-
+          Disk at {{ preflight_disk.stdout }}%
+          — exceeds 85% threshold
+      when: >-
+        preflight_disk.stdout | int
+        > disk_usage_threshold | default(85)
+      tags: [preflight]
+
+    - name: "Preflight: check port 80 available"
+      ansible.builtin.wait_for:
+        port: 80
+        state: stopped
+        timeout: 3
+      failed_when: false
+      register: port_80_check
+      tags: [preflight]
+
+  # ---------- roles ----------
+  roles:
+    - role: common
+      tags: [common]
+    - role: security
+      tags: [security]
+    - role: observability
+      tags: [observability]
+    - role: backend
+      tags: [backend]
+    - role: nginx
+      tags: [nginx]
+    - role: deploy
+      tags: [deploy, frontend]
+    - role: backup
+      tags: [backup]
+
+  # ---------- post-deploy smoke tests ----------
+  post_tasks:
+
+    - name: "Smoke: wait for backend"
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{
+            backend_port }}/api/health
+        return_content: true
+      register: smoke_health
+      retries: 5
+      delay: 3
+      until: smoke_health.status == 200
+      tags: [smoke]
+
+    - name: "Smoke: health response valid"
+      ansible.builtin.assert:
+        that:
+          - smoke_health.json.status == "healthy"
+        fail_msg: "Health check body invalid"
+      tags: [smoke]
+
+    - name: "Smoke: frontend returns 200"
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:80/"
+      register: smoke_fe
+      retries: 3
+      delay: 2
+      until: smoke_fe.status == 200
+      tags: [smoke]
+
+    - name: "Smoke: API returns valid JSON"
+      ansible.builtin.uri:
+        url: >-
+          http://127.0.0.1:{{
+            backend_port }}/api/transactions
+        return_content: true
+      register: smoke_api
+      retries: 3
+      delay: 2
+      until: smoke_api.json is defined
+      tags: [smoke]
+
+    - name: "Smoke: API list is an array"
+      ansible.builtin.assert:
+        that:
+          - smoke_api.json | type_debug == "list"
+        fail_msg: >-
+          /api/transactions did not return
+          a JSON array
+      tags: [smoke]
+
+    - name: "Post-deploy summary"
+      ansible.builtin.debug:
+        msg: >-
+          Deployment complete —
+          env={{ deploy_env | default('dev') }},
+          release={{ release_ts | default('N/A') }}
+      tags: [smoke]

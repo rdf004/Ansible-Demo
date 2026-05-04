@@ -1,0 +1,105 @@
+# {{ ansible_managed }}
+# TradeOps — Gunicorn configuration
+import json
+import logging
+import datetime
+
+# ------- server socket -------
+bind = "{{ gunicorn_bind }}"
+
+# ------- worker processes -------
+workers = {{ gunicorn_workers }}
+worker_class = "sync"
+timeout = {{ gunicorn_timeout }}
+graceful_timeout = {{ gunicorn_graceful_timeout }}
+max_requests = {{ gunicorn_max_requests }}
+max_requests_jitter = {{ gunicorn_max_requests_jitter }}
+preload_app = True
+
+# ------- logging -------
+accesslog = "{{ log_dir }}/backend-access.log"
+errorlog = "{{ log_dir }}/backend-error.log"
+loglevel = "{{ gunicorn_log_level }}"
+
+# Structured JSON access log
+access_log_format = json.dumps({
+    "ts": "%(t)s",
+    "ip": "%(h)s",
+    "method": "%(m)s",
+    "path": "%(U)s",
+    "qs": "%(q)s",
+    "proto": "%(H)s",
+    "status": "%(s)s",
+    "len": "%(B)s",
+    "us": "%(D)s",
+    "ua": "%(a)s",
+    "ref": "%(f)s",
+})
+
+# ------- process naming -------
+proc_name = "tradeops"
+pidfile = "/var/run/tradeops/gunicorn.pid"
+
+
+# ------- JSON error logger -------
+class JsonFmt(logging.Formatter):
+    """Emit each log record as a single JSON line."""
+
+    def format(self, record):
+        entry = {
+            "ts": (
+                datetime.datetime.utcnow()
+                .isoformat() + "Z"
+            ),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            entry["exc"] = (
+                self.formatException(record.exc_info)
+            )
+        return json.dumps(entry)
+
+
+logconfig_dict = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {
+            "()": (
+                "gunicorn.conf.JsonFmt"
+            ),
+        },
+    },
+    "handlers": {
+        "error_file": {
+            "class": "logging.FileHandler",
+            "formatter": "json",
+            "filename": (
+                "{{ log_dir }}/backend-error.log"
+            ),
+        },
+        "access_file": {
+            "class": "logging.FileHandler",
+            "formatter": "json",
+            "filename": (
+                "{{ log_dir }}"
+                "/backend-access.log"
+            ),
+        },
+    },
+    "loggers": {
+        "gunicorn.error": {
+            "level": "{{ gunicorn_log_level
+                | upper }}",
+            "handlers": ["error_file"],
+            "propagate": False,
+        },
+        "gunicorn.access": {
+            "level": "INFO",
+            "handlers": ["access_file"],
+            "propagate": False,
+        },
+    },
+}

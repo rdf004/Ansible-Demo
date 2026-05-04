@@ -1,0 +1,10 @@
+---
+sshd_port: 22
+sshd_permit_root_login: "no"
+sshd_password_auth: "no"
+sshd_protocol: 2
+
+allowed_ports:
+  - 22
+  - 80
+  - 443

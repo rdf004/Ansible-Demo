@@ -1,0 +1,6 @@
+---
+backup_dir: "{{ app_base_dir }}/backups"
+backup_daily_retain: 7
+backup_weekly_retain: 4
+backup_cron_hour: "2"
+backup_cron_minute: "30"

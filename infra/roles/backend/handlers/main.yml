@@ -1,0 +1,16 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart tradeops backend
+  ansible.builtin.systemd:
+    name: tradeops-backend
+    state: restarted
+    enabled: true
+
+- name: Enable health timer
+  ansible.builtin.systemd:
+    name: tradeops-health.timer
+    state: started
+    enabled: true

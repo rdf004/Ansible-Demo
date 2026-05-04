@@ -1,0 +1,102 @@
+# {{ ansible_managed }}
+# TradeOps — Nginx reverse-proxy configuration
+
+# Rate-limiting zone (must be single line)
+limit_req_zone $binary_remote_addr zone=api:10m rate={{ nginx_rl_rate }};
+
+upstream tradeops_backend {
+    server {{ gunicorn_bind }} fail_timeout=10s;
+    keepalive 16;
+}
+
+server {
+    listen 80 default_server;
+    server_name {{ nginx_server_name }};
+
+    client_max_body_size {{ nginx_client_max_body_size }};
+
+    # ----- security headers -----
+    add_header X-Frame-Options
+      "DENY" always;
+    add_header X-Content-Type-Options
+      "nosniff" always;
+    add_header Referrer-Policy
+      "strict-origin-when-cross-origin"
+      always;
+    add_header Strict-Transport-Security
+      "max-age=63072000; includeSubDomains"
+      always;
+    add_header Content-Security-Policy
+      "default-src 'self'; "
+      "script-src 'self'; "
+      "style-src 'self'; "
+      "img-src 'self' data:; "
+      "font-src 'self'; "
+      "connect-src 'self'; "
+      "frame-ancestors 'none'"
+      always;
+
+    # ----- gzip compression -----
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_min_length 256;
+    gzip_comp_level 6;
+    gzip_types
+        text/plain
+        text/css
+        text/javascript
+        application/javascript
+        application/json
+        application/xml
+        image/svg+xml;
+
+    # ----- access / error logs -----
+    access_log
+      {{ log_dir }}/nginx-access.log;
+    error_log
+      {{ log_dir }}/nginx-error.log warn;
+
+    # ----- API reverse proxy -----
+    location /api/ {
+        limit_req zone=api
+          burst={{ nginx_rl_burst }}
+          nodelay;
+
+        proxy_pass
+          http://tradeops_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP
+          $remote_addr;
+        proxy_set_header X-Forwarded-For
+          $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto
+          $scheme;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 30s;
+        proxy_send_timeout 30s;
+    }
+
+    # ----- static frontend -----
+    location / {
+        root
+          {{ current_link }}/frontend/dist;
+        index index.html;
+        try_files
+          $uri $uri/ /index.html;
+
+        # cache static assets
+        location ~* \.(js|css|png|jpg|jpeg
+          |gif|ico|svg|woff2?)$ {
+            expires 30d;
+            add_header Cache-Control
+              "public, immutable";
+        }
+    }
+
+    # ----- deny hidden files -----
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+}
