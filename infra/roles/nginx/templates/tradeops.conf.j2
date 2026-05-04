@@ -1,9 +1,8 @@
 # {{ ansible_managed }}
 # TradeOps — Nginx reverse-proxy configuration
 
-# Rate-limiting zone
-limit_req_zone $binary_remote_addr
-  zone=api:10m rate={{ nginx_rate_limit_rate }};
+# Rate-limiting zone (must be single line)
+limit_req_zone $binary_remote_addr zone=api:10m rate={{ nginx_rl_rate }};
 
 upstream tradeops_backend {
     server {{ gunicorn_bind }} fail_timeout=10s;
@@ -17,18 +16,20 @@ server {
     client_max_body_size {{ nginx_client_max_body_size }};
 
     # ----- security headers -----
-    add_header X-Frame-Options "DENY" always;
+    add_header X-Frame-Options
+      "DENY" always;
     add_header X-Content-Type-Options
       "nosniff" always;
     add_header Referrer-Policy
-      "strict-origin-when-cross-origin" always;
+      "strict-origin-when-cross-origin"
+      always;
     add_header Strict-Transport-Security
       "max-age=63072000; includeSubDomains"
       always;
     add_header Content-Security-Policy
       "default-src 'self'; "
-      "script-src 'self' 'unsafe-inline'; "
-      "style-src 'self' 'unsafe-inline'; "
+      "script-src 'self'; "
+      "style-src 'self'; "
       "img-src 'self' data:; "
       "font-src 'self'; "
       "connect-src 'self'; "
@@ -51,16 +52,19 @@ server {
         image/svg+xml;
 
     # ----- access / error logs -----
-    access_log {{ log_dir }}/nginx-access.log;
-    error_log  {{ log_dir }}/nginx-error.log warn;
+    access_log
+      {{ log_dir }}/nginx-access.log;
+    error_log
+      {{ log_dir }}/nginx-error.log warn;
 
     # ----- API reverse proxy -----
     location /api/ {
         limit_req zone=api
-          burst={{ nginx_rate_limit_burst }}
+          burst={{ nginx_rl_burst }}
           nodelay;
 
-        proxy_pass http://tradeops_backend;
+        proxy_pass
+          http://tradeops_backend;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP
           $remote_addr;
@@ -75,13 +79,15 @@ server {
 
     # ----- static frontend -----
     location / {
-        root {{ current_link }}/frontend/dist;
+        root
+          {{ current_link }}/frontend/dist;
         index index.html;
-        try_files $uri $uri/ /index.html;
+        try_files
+          $uri $uri/ /index.html;
 
         # cache static assets
-        location ~* \.(js|css|png|jpg|jpeg|gif
-          |ico|svg|woff2?)$ {
+        location ~* \.(js|css|png|jpg|jpeg
+          |gif|ico|svg|woff2?)$ {
             expires 30d;
             add_header Cache-Control
               "public, immutable";

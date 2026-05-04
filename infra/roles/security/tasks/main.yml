@@ -18,11 +18,6 @@
 
 # ---------- firewall (UFW) ----------
 
-- name: Reset UFW to defaults
-  community.general.ufw:
-    state: reset
-  tags: [security, firewall]
-
 - name: Set UFW default deny incoming
   community.general.ufw:
     direction: incoming
@@ -59,28 +54,38 @@
     mode: "0750"
   tags: [security]
 
-- name: Ensure no world-readable files
+- name: Find world-readable files
   ansible.builtin.command:
     cmd: >-
       find {{ app_base_dir }}
       -type f -perm /o+r
-      -exec chmod o-rwx {} +
-  register: perm_fix
-  changed_when: perm_fix.rc == 0
+  register: world_readable
+  changed_when: false
   failed_when: false
+  tags: [security]
+
+- name: Remove world-readable permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: "o-rwx"
+  loop: >-
+    {{ world_readable.stdout_lines
+       | default([]) }}
+  when: world_readable.stdout_lines | length > 0
   tags: [security]
 
 # ---------- file integrity ----------
 
 - name: Install integrity check script
   ansible.builtin.copy:
-    dest: "{{ shared_dir }}/integrity-check.sh"
+    dest: >-
+      {{ shared_dir }}/integrity-check.sh
     owner: "{{ app_user }}"
     group: "{{ app_group }}"
     mode: "0750"
     content: |
       #!/usr/bin/env bash
-      # Generate SHA-256 manifest of deployed code
+      # Generate SHA-256 manifest
       set -euo pipefail
       RELEASE="$1"
       MANIFEST="${RELEASE}/MANIFEST.sha256"

@@ -38,8 +38,8 @@ node_major_version: "20"
 # Nginx
 nginx_server_name: "_"
 nginx_client_max_body_size: "10m"
-nginx_rate_limit_rate: "30r/s"
-nginx_rate_limit_burst: 20
+nginx_rl_rate: "30r/s"
+nginx_rl_burst: 20
 
 # Logging / observability
 log_dir: /var/log/tradeops

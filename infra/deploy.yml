@@ -82,7 +82,7 @@
     - role: nginx
       tags: [nginx]
     - role: deploy
-      tags: [deploy]
+      tags: [deploy, frontend]
     - role: backup
       tags: [backup]
 

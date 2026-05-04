@@ -110,6 +110,24 @@
 
 # ---------- file integrity manifest ----------
 
+- name: Verify integrity-check.sh exists
+  ansible.builtin.stat:
+    path: >-
+      {{ shared_dir }}/integrity-check.sh
+  register: integrity_script
+  tags: [deploy, integrity]
+
+- name: Fail if integrity script missing
+  ansible.builtin.fail:
+    msg: >-
+      {{ shared_dir }}/integrity-check.sh
+      not found. Run with --tags security
+      first to install it.
+  when: >-
+    not integrity_script.stat.exists
+    | default(false)
+  tags: [deploy, integrity]
+
 - name: Generate integrity manifest
   ansible.builtin.command:
     cmd: >-
