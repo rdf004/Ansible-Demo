@@ -1,0 +1,29 @@
+# Managed by Ansible — do not edit manually
+[Unit]
+Description=TradeOps Backend (Gunicorn)
+After=network.target
+Wants=tradeops-healthcheck.timer
+
+[Service]
+Type=exec
+User={{ app_user }}
+Group={{ app_group }}
+WorkingDirectory={{ current_link }}/backend
+EnvironmentFile={{ shared_dir }}/.env
+ExecStart={{ current_link }}/backend/venv/bin/gunicorn \
+    --config {{ shared_dir }}/gunicorn.conf.py \
+    app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier={{ app_name }}-backend
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

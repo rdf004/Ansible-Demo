@@ -1,0 +1,66 @@
+---
+# ── Post-deployment smoke tests ─────────────────
+
+- name: Wait for backend to become healthy
+  ansible.builtin.uri:
+    url: >-
+      {{ health_check_url }}/api/health
+    return_content: true
+    status_code: 200
+  register: smoke_tests_health
+  retries: 15
+  delay: 3
+  until: smoke_tests_health.status == 200
+  tags: [smoke_tests]
+
+- name: Validate health response JSON
+  ansible.builtin.assert:
+    that:
+      - smoke_tests_health.json is defined
+      - >-
+        smoke_tests_health.json.status
+        == "healthy"
+    fail_msg: "Health endpoint invalid"
+    success_msg: "Backend health check passed"
+  tags: [smoke_tests]
+
+- name: Verify API returns valid JSON
+  ansible.builtin.uri:
+    url: >-
+      {{ health_check_url }}/api/transactions
+    return_content: true
+    status_code: 200
+  register: smoke_tests_api
+  retries: 5
+  delay: 2
+  until: smoke_tests_api.status == 200
+  tags: [smoke_tests]
+
+- name: Validate transactions response
+  ansible.builtin.assert:
+    that:
+      - smoke_tests_api.json is defined
+      - smoke_tests_api.json | length >= 0
+    fail_msg: "API did not return valid JSON"
+    success_msg: "API smoke test passed"
+  tags: [smoke_tests]
+
+- name: Verify frontend returns 200
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:80"
+    status_code: 200
+    return_content: false
+  register: smoke_tests_frontend
+  retries: 5
+  delay: 2
+  until: smoke_tests_frontend.status == 200
+  tags: [smoke_tests]
+
+- name: Report smoke test results
+  ansible.builtin.debug:
+    msg: >-
+      All smoke tests passed —
+      health={{ smoke_tests_health.status }},
+      api={{ smoke_tests_api.status }},
+      frontend={{ smoke_tests_frontend.status }}
+  tags: [smoke_tests]

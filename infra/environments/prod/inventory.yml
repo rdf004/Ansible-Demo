@@ -1,0 +1,12 @@
+---
+all:
+  hosts:
+    prod-server:
+      ansible_host: prod.tradeops.internal
+      ansible_port: 22
+      ansible_user: deploy
+      ansible_connection: ssh
+  vars:
+    env_name: prod
+    ansible_become: true
+    ansible_become_method: sudo

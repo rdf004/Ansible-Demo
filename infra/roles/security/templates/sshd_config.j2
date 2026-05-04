@@ -1,0 +1,21 @@
+# Managed by Ansible — do not edit manually
+Protocol 2
+Port 22
+
+PermitRootLogin {{ ssh_permit_root_login }}
+PasswordAuthentication {{ ssh_password_auth }}
+PubkeyAuthentication yes
+
+ChallengeResponseAuthentication no
+UsePAM yes
+
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+
+MaxAuthTries 3
+LoginGraceTime 30
+ClientAliveInterval 300
+ClientAliveCountMax 2
+
+Subsystem sftp /usr/lib/openssh/sftp-server

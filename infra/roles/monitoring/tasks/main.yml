@@ -1,0 +1,81 @@
+---
+# ── Observability: logging + logrotate ──────────
+
+- name: Ensure log directory exists
+  ansible.builtin.file:
+    path: "{{ log_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [monitoring]
+
+- name: Create backend access log file
+  ansible.builtin.file:
+    path: "{{ log_dir }}/backend-access.log"
+    state: touch
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  tags: [monitoring]
+
+- name: Create backend error log file
+  ansible.builtin.file:
+    path: "{{ log_dir }}/backend-error.log"
+    state: touch
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  tags: [monitoring]
+
+- name: Create nginx access log file
+  ansible.builtin.file:
+    path: "{{ log_dir }}/nginx-access.log"
+    state: touch
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  tags: [monitoring]
+
+- name: Create nginx error log file
+  ansible.builtin.file:
+    path: "{{ log_dir }}/nginx-error.log"
+    state: touch
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  tags: [monitoring]
+
+- name: Template logrotate configuration
+  ansible.builtin.template:
+    src: logrotate-tradeops.j2
+    dest: /etc/logrotate.d/tradeops
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [monitoring]
+
+- name: Check current disk usage
+  ansible.builtin.shell: |
+    set -o pipefail
+    df --output=pcent / | tail -1 | tr -d ' %'
+  args:
+    executable: /bin/bash
+  register: monitoring_current_disk
+  changed_when: false
+  tags: [monitoring]
+
+- name: Report disk usage
+  ansible.builtin.debug:
+    msg: >-
+      Disk usage: {{ monitoring_current_disk.stdout }}%
+      (threshold: {{ disk_usage_threshold }}%)
+  tags: [monitoring]

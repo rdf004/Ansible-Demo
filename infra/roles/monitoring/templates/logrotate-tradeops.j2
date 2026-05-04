@@ -1,0 +1,17 @@
+# Managed by Ansible — do not edit manually
+{{ log_dir }}/*.log {
+    daily
+    rotate {{ log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 {{ app_user }} {{ app_group }}
+    sharedscripts
+    postrotate
+        [ -f /run/nginx.pid ] && \
+            kill -USR1 $(cat /run/nginx.pid)
+        systemctl kill -s HUP \
+            tradeops-backend 2>/dev/null || true
+    endscript
+}

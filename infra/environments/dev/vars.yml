@@ -1,0 +1,14 @@
+---
+env_name: dev
+
+# Disable hardening in Docker dev target
+ssh_hardening_enabled: false
+firewall_enabled: false
+
+# Lighter resource usage for dev
+gunicorn_workers: 1
+nginx_rate_limit_zone: "50r/s"
+nginx_rate_limit_burst: 50
+
+# Relaxed disk threshold for dev
+disk_usage_threshold: 95

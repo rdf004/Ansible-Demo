@@ -1,0 +1,70 @@
+---
+# ── Backup and recovery ─────────────────────────
+
+- name: Template backup script
+  ansible.builtin.template:
+    src: backup.sh.j2
+    dest: "{{ shared_dir }}/backup.sh"
+    owner: root
+    group: root
+    mode: "0750"
+  tags: [backup]
+
+- name: Schedule daily backup via cron
+  ansible.builtin.cron:
+    name: "tradeops-daily-backup"
+    user: root
+    hour: "{{ backup_cron_hour }}"
+    minute: "{{ backup_cron_minute }}"
+    job: >-
+      {{ shared_dir }}/backup.sh daily
+      >> {{ log_dir }}/backup.log 2>&1
+  tags: [backup]
+
+- name: Schedule weekly backup via cron
+  ansible.builtin.cron:
+    name: "tradeops-weekly-backup"
+    user: root
+    weekday: "0"
+    hour: "{{ backup_cron_hour }}"
+    minute: "30"
+    job: >-
+      {{ shared_dir }}/backup.sh weekly
+      >> {{ log_dir }}/backup.log 2>&1
+  tags: [backup]
+
+# ── Backup verification ────────────────────────
+- name: Find most recent daily backup
+  ansible.builtin.find:
+    paths: "{{ backup_dir }}/daily"
+    patterns: "*.tar.gz"
+    file_type: file
+  register: backup_daily_found
+  ignore_errors: true
+  tags: [backup]
+
+- name: Verify latest backup exists
+  ansible.builtin.debug:
+    msg: >-
+      {{ (backup_daily_found.files
+          | length > 0)
+         | ternary(
+             'Latest backup: ' +
+             (backup_daily_found.files
+              | sort(attribute='mtime')
+              | last).path
+              | default('none'),
+             'No backups yet — first run
+              pending') }}
+  tags: [backup]
+
+- name: Verify backup is not empty
+  ansible.builtin.assert:
+    that: >-
+      backup_daily_found.files | length == 0
+      or (backup_daily_found.files
+          | sort(attribute='mtime')
+          | last).size > 0
+    fail_msg: "Latest backup file is empty"
+    success_msg: "Backup verification passed"
+  tags: [backup]

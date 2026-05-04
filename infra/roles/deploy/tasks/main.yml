@@ -1,0 +1,89 @@
+---
+# ── Blue-green deploy: symlink swap ─────────────
+
+- name: Generate file-integrity manifest
+  ansible.builtin.shell: |
+    set -euo pipefail
+    cd {{ release_dir }}
+    find . -type f \
+      ! -path './backend/venv/*' \
+      ! -path './frontend/node_modules/*' \
+      -exec sha256sum {} + \
+      > {{ release_dir }}/manifest.sha256
+  args:
+    executable: /bin/bash
+  changed_when: true
+  tags: [deploy]
+
+- name: Set manifest ownership
+  ansible.builtin.file:
+    path: "{{ release_dir }}/manifest.sha256"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  tags: [deploy]
+
+- name: Swap current symlink to new release
+  ansible.builtin.command:
+    cmd: >-
+      bash -c 'ln -sfn {{ release_dir }}
+      {{ current_link }}.tmp &&
+      mv -Tf {{ current_link }}.tmp
+      {{ current_link }}'
+  changed_when: true
+  tags: [deploy]
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+  tags: [deploy]
+
+- name: Restart backend service
+  ansible.builtin.systemd:
+    name: tradeops-backend
+    state: restarted
+  tags: [deploy]
+
+- name: Reload nginx with new root
+  ansible.builtin.systemd:
+    name: nginx
+    state: reloaded
+  tags: [deploy]
+
+- name: Start health check timer
+  ansible.builtin.systemd:
+    name: tradeops-healthcheck.timer
+    state: started
+  tags: [deploy]
+
+# ── Prune old releases ──────────────────────────
+- name: List all release directories
+  ansible.builtin.find:
+    paths: "{{ releases_dir }}"
+    file_type: directory
+  register: deploy_releases_found
+  tags: [deploy]
+
+- name: Sort releases newest first
+  ansible.builtin.set_fact:
+    deploy_sorted_releases: >-
+      {{ deploy_releases_found.files
+         | sort(attribute='path', reverse=true)
+         | map(attribute='path')
+         | list }}
+  tags: [deploy]
+
+- name: Identify releases to remove
+  ansible.builtin.set_fact:
+    deploy_old_releases: >-
+      {{ deploy_sorted_releases[
+           keep_releases:] }}
+  tags: [deploy]
+
+- name: Remove old releases
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ deploy_old_releases }}"
+  when: deploy_old_releases | length > 0
+  tags: [deploy]

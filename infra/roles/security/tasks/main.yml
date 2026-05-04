@@ -1,0 +1,83 @@
+---
+# ── Security hardening ──────────────────────────
+
+# ── SSH hardening ───────────────────────────────
+- name: Deploy hardened sshd_config
+  ansible.builtin.template:
+    src: sshd_config.j2
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+    validate: "sshd -t -f %s"
+  notify: Restart sshd
+  when: ssh_hardening_enabled | bool
+  tags: [security]
+
+# ── Firewall (UFW) ─────────────────────────────
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+  when: firewall_enabled | bool
+  tags: [security]
+
+- name: Set UFW default deny incoming
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+  when: firewall_enabled | bool
+  tags: [security]
+
+- name: Set UFW default allow outgoing
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+  when: firewall_enabled | bool
+  tags: [security]
+
+- name: Allow required ports through UFW
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ allowed_ports }}"
+  when: firewall_enabled | bool
+  tags: [security]
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+  when: firewall_enabled | bool
+  tags: [security]
+
+# ── Directory permissions ───────────────────────
+- name: Lock down application directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+    recurse: false
+  loop:
+    - "{{ app_base_dir }}"
+    - "{{ shared_dir }}"
+    - "{{ releases_dir }}"
+    - "{{ backup_dir }}"
+  tags: [security]
+
+- name: Lock down log directory
+  ansible.builtin.file:
+    path: "{{ log_dir }}"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0750"
+  tags: [security]
+
+- name: Restrict shared env file
+  ansible.builtin.file:
+    path: "{{ shared_dir }}/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: "0640"
+  tags: [security]

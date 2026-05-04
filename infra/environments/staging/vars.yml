@@ -1,0 +1,9 @@
+---
+env_name: staging
+
+ssh_hardening_enabled: true
+firewall_enabled: true
+
+gunicorn_workers: 2
+nginx_rate_limit_zone: "20r/s"
+nginx_rate_limit_burst: 30

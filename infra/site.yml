@@ -1,0 +1,90 @@
+---
+# ────────────────────────────────────────────────
+# TradeOps — Production Deployment Playbook
+# ────────────────────────────────────────────────
+# Usage:
+#   ansible-playbook \
+#     -i environments/dev/inventory.yml site.yml
+#
+#   ansible-playbook \
+#     -i environments/prod/inventory.yml site.yml
+#
+# Tags:
+#   --tags backend   --tags frontend
+#   --tags nginx     --tags security
+#   --tags monitoring --tags backup
+# ────────────────────────────────────────────────
+- name: Deploy TradeOps application
+  hosts: all
+  gather_facts: true
+  become: true
+
+  vars_files:
+    - group_vars/all/vars.yml
+    - group_vars/all/vault.yml
+
+  pre_tasks:
+    - name: Load environment-specific vars
+      ansible.builtin.include_vars:
+        file: >-
+          environments/{{ env_name }}/vars.yml
+      tags: [always]
+
+    - name: Record release timestamp
+      ansible.builtin.set_fact:
+        release_ts: >-
+          {{ ansible_date_time.iso8601_basic_short }}
+      tags: [always]
+
+    - name: Derive release directory path
+      ansible.builtin.set_fact:
+        release_dir: >-
+          {{ releases_dir }}/{{ release_ts }}
+      tags: [always]
+
+    - name: Capture local git commit hash
+      ansible.builtin.set_fact:
+        git_commit: >-
+          {{ lookup('pipe',
+             'git -C ' + playbook_dir +
+             '/.. rev-parse --short HEAD') }}
+      tags: [always]
+
+  roles:
+    - role: preflight
+      tags: [preflight]
+    - role: common
+      tags: [common]
+    - role: security
+      tags: [security]
+    - role: backend
+      tags: [backend]
+    - role: frontend
+      tags: [frontend]
+    - role: nginx
+      tags: [nginx]
+    - role: deploy
+      tags: [deploy]
+    - role: monitoring
+      tags: [monitoring]
+    - role: backup
+      tags: [backup]
+    - role: smoke_tests
+      tags: [smoke_tests]
+
+  post_tasks:
+    - name: Append success to deploy log
+      ansible.builtin.lineinfile:
+        path: "{{ deploy_log }}"
+        create: true
+        mode: "0640"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        line: >-
+          {{ ansible_date_time.iso8601 }}
+          | commit={{ git_commit }}
+          | deployer={{ lookup('env', 'USER') }}
+          | env={{ env_name }}
+          | release={{ release_ts }}
+          | status=SUCCESS
+      tags: [always]

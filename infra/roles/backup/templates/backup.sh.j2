@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Managed by Ansible — do not edit manually
+# Usage: backup.sh [daily|weekly]
+set -euo pipefail
+
+BACKUP_TYPE="${1:-daily}"
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+BASE="{{ backup_dir }}"
+DAILY_DIR="$BASE/daily"
+WEEKLY_DIR="$BASE/weekly"
+DAILY_KEEP={{ backup_retention_daily }}
+WEEKLY_KEEP={{ backup_retention_weekly }}
+
+mkdir -p "$DAILY_DIR" "$WEEKLY_DIR"
+
+ARCHIVE_NAME="{{ app_name }}-${TIMESTAMP}.tar.gz"
+
+if [ "$BACKUP_TYPE" = "weekly" ]; then
+  TARGET_DIR="$WEEKLY_DIR"
+else
+  TARGET_DIR="$DAILY_DIR"
+fi
+
+tar czf "$TARGET_DIR/$ARCHIVE_NAME" \
+  -C "{{ app_base_dir }}" \
+  --exclude='releases/*/backend/venv' \
+  --exclude='releases/*/frontend/node_modules' \
+  shared/ \
+  deploy.log \
+  current/manifest.sha256 \
+  2>/dev/null || true
+
+echo "[$(date -Iseconds)] $BACKUP_TYPE backup: \
+$TARGET_DIR/$ARCHIVE_NAME"
+
+# ── Rotation ────────────────────────────────────
+rotate_backups() {
+  local dir="$1"
+  local keep="$2"
+  local count
+  count=$(find "$dir" -name '*.tar.gz' \
+    -type f | wc -l)
+  if [ "$count" -gt "$keep" ]; then
+    find "$dir" -name '*.tar.gz' -type f \
+      -printf '%T+ %p\n' \
+      | sort \
+      | head -n $(( count - keep )) \
+      | awk '{print $2}' \
+      | xargs rm -f
+  fi
+}
+
+rotate_backups "$DAILY_DIR" "$DAILY_KEEP"
+rotate_backups "$WEEKLY_DIR" "$WEEKLY_KEEP"

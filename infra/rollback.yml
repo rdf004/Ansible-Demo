@@ -1,0 +1,140 @@
+---
+# ────────────────────────────────────────────────
+# TradeOps — Rollback Playbook
+# ────────────────────────────────────────────────
+# Reverts to the previous release by swapping the
+# current symlink to the prior release directory.
+#
+# Usage:
+#   ansible-playbook \
+#     -i environments/dev/inventory.yml \
+#     rollback.yml
+# ────────────────────────────────────────────────
+- name: Rollback TradeOps to previous release
+  hosts: all
+  gather_facts: true
+  become: true
+
+  vars_files:
+    - group_vars/all/vars.yml
+    - group_vars/all/vault.yml
+
+  pre_tasks:
+    - name: Load environment-specific vars
+      ansible.builtin.include_vars:
+        file: >-
+          environments/{{ env_name }}/vars.yml
+      tags: [always]
+
+  tasks:
+    - name: Resolve current symlink target
+      ansible.builtin.stat:
+        path: "{{ current_link }}"
+      register: current_stat
+
+    - name: Fail if no current release
+      ansible.builtin.fail:
+        msg: "No current release symlink found"
+      when: not current_stat.stat.exists
+
+    - name: Get current release path
+      ansible.builtin.set_fact:
+        current_release: >-
+          {{ current_stat.stat.lnk_target }}
+
+    - name: List all releases (sorted)
+      ansible.builtin.find:
+        paths: "{{ releases_dir }}"
+        file_type: directory
+      register: all_releases
+
+    - name: Sort releases by name
+      ansible.builtin.set_fact:
+        sorted_releases: >-
+          {{ all_releases.files
+             | sort(attribute='path')
+             | map(attribute='path')
+             | list }}
+
+    - name: Find previous release
+      ansible.builtin.set_fact:
+        prev_index: >-
+          {{ sorted_releases.index(
+               current_release) - 1 }}
+
+    - name: Fail if no previous release
+      ansible.builtin.fail:
+        msg: >-
+          No previous release available
+          for rollback
+      when: prev_index | int < 0
+
+    - name: Set rollback target
+      ansible.builtin.set_fact:
+        rollback_release: >-
+          {{ sorted_releases[
+               prev_index | int] }}
+
+    - name: Display rollback info
+      ansible.builtin.debug:
+        msg: >-
+          Rolling back from
+          {{ current_release | basename }}
+          to {{ rollback_release | basename }}
+
+    - name: Swap symlink to previous release
+      ansible.builtin.command:
+        cmd: >-
+          bash -c 'ln -sfn
+          {{ rollback_release }}
+          {{ current_link }}.tmp &&
+          mv -Tf {{ current_link }}.tmp
+          {{ current_link }}'
+      changed_when: true
+
+    - name: Restart backend service
+      ansible.builtin.systemd:
+        name: tradeops-backend
+        state: restarted
+        daemon_reload: true
+
+    - name: Reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
+
+    - name: Wait for backend to start
+      ansible.builtin.uri:
+        url: >-
+          {{ health_check_url }}/api/health
+        return_content: true
+        status_code: 200
+      register: health
+      retries: 10
+      delay: 3
+      until: health.status == 200
+
+    - name: Verify frontend responds
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:80"
+        status_code: 200
+      register: frontend_check
+      retries: 5
+      delay: 2
+      until: frontend_check.status == 200
+
+    - name: Append rollback to deploy log
+      ansible.builtin.lineinfile:
+        path: "{{ deploy_log }}"
+        create: true
+        mode: "0640"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        line: >-
+          {{ ansible_date_time.iso8601 }}
+          | commit=rollback
+          | deployer={{ lookup('env','USER') }}
+          | env={{ env_name }}
+          | release={{
+            rollback_release | basename }}
+          | status=ROLLBACK
